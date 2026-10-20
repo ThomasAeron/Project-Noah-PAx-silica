@@ -1,0 +1,2283 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const companyDetails = {
+    name: 'Cainta One Express',
+    location: 'Cainta, Rizal',
+    phone: '09566753142',
+    email: 'rbaniqued70@gmail.com'
+  };
+
+  document.querySelectorAll('[data-location]').forEach((el) => {
+    el.textContent = companyDetails.location;
+  });
+
+  document.querySelectorAll('[data-phone]').forEach((el) => {
+    el.textContent = companyDetails.phone;
+  });
+
+  document.querySelectorAll('[data-email]').forEach((el) => {
+    el.textContent = companyDetails.email;
+    el.setAttribute('href', `mailto:${companyDetails.email}`);
+  });
+
+  const yearTarget = document.querySelector('[data-year]');
+  if (yearTarget) {
+    yearTarget.textContent = new Date().getFullYear();
+  }
+
+  document.querySelectorAll('[data-password-target]').forEach((button) => {
+    const input = document.getElementById(button.dataset.passwordTarget);
+    if (!input) return;
+    button.addEventListener('click', () => {
+      const revealing = input.type === 'password';
+      input.type = revealing ? 'text' : 'password';
+      button.textContent = revealing ? 'Hide' : 'Show';
+      button.setAttribute('aria-pressed', String(revealing));
+      button.setAttribute('aria-label', `${revealing ? 'Hide' : 'Show'} ${input.labels[0]?.textContent.toLowerCase() || 'password'}`);
+    });
+  });
+
+  const accountStorageKey = 'coe-demo-account-v1';
+  const sessionStorageKey = 'coe-demo-session-v1';
+  const profileStorageKey = 'coe-demo-profile-v1';
+  const readLocalRecord = (key) => {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  };
+  const getUserProfile = (account = {}) => {
+    const profile = readLocalRecord(profileStorageKey);
+    return profile || {
+      name: account.name || '',
+      address: '',
+      area: '',
+      orderUpdates: true
+    };
+  };
+  const saveUserProfile = (profile) => {
+    const currentAccount = readLocalRecord(accountStorageKey);
+    const normalizedProfile = {
+      name: profile.name.trim(),
+      address: profile.address.trim(),
+      area: profile.area,
+      orderUpdates: Boolean(profile.orderUpdates)
+    };
+    localStorage.setItem(profileStorageKey, JSON.stringify(normalizedProfile));
+    if (currentAccount) {
+      currentAccount.name = normalizedProfile.name;
+      localStorage.setItem(accountStorageKey, JSON.stringify(currentAccount));
+    }
+    const currentSession = readLocalRecord(sessionStorageKey);
+    if (currentSession) {
+      currentSession.name = normalizedProfile.name;
+      localStorage.setItem(sessionStorageKey, JSON.stringify(currentSession));
+    }
+    window.dispatchEvent(new CustomEvent('coe-profile-updated', { detail: normalizedProfile }));
+    return normalizedProfile;
+  };
+
+  const navSignIn = document.getElementById('nav-sign-in');
+  const userMenu = document.getElementById('user-menu');
+  const userMenuTrigger = document.getElementById('user-menu-trigger');
+  const userMenuPanel = document.getElementById('user-menu-panel');
+  const userProfileForm = document.getElementById('user-profile-form');
+  const userProfileMessage = document.getElementById('user-profile-message');
+  const renderHeaderUser = () => {
+    if (!userMenu || !navSignIn) return;
+    try {
+      const session = readLocalRecord(sessionStorageKey);
+      navSignIn.hidden = Boolean(session?.email);
+      userMenu.hidden = !session?.email;
+      if (!session?.email) return;
+      const profile = getUserProfile(session);
+      document.getElementById('user-menu-name').textContent = profile.name || 'My account';
+      document.getElementById('user-avatar').textContent = (profile.name || 'U').trim().charAt(0).toLocaleUpperCase();
+      document.getElementById('user-menu-email').textContent = session.email;
+      document.getElementById('user-profile-name').value = profile.name;
+      document.getElementById('user-profile-address').value = profile.address;
+      document.getElementById('user-profile-area').value = profile.area;
+      document.getElementById('user-order-updates').checked = profile.orderUpdates;
+    } catch (error) {
+      console.error('Could not load the signed-in profile.', error);
+      if (userProfileMessage) userProfileMessage.textContent = 'Could not load your saved profile. Please reopen your account settings.';
+    }
+  };
+  renderHeaderUser();
+  userMenuTrigger?.addEventListener('click', () => {
+    const opening = userMenuPanel.hidden;
+    userMenuPanel.hidden = !opening;
+    userMenuTrigger.setAttribute('aria-expanded', String(opening));
+  });
+  document.addEventListener('click', (event) => {
+    if (userMenu && !userMenu.hidden && !userMenu.contains(event.target)) {
+      userMenuPanel.hidden = true;
+      userMenuTrigger.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && userMenuPanel && !userMenuPanel.hidden) {
+      userMenuPanel.hidden = true;
+      userMenuTrigger.setAttribute('aria-expanded', 'false');
+      userMenuTrigger.focus();
+    }
+  });
+  userProfileForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    try {
+      const values = new FormData(userProfileForm);
+      const profile = saveUserProfile({
+        name: values.get('name')?.toString() || '',
+        address: values.get('address')?.toString() || '',
+        area: values.get('area')?.toString() || '',
+        orderUpdates: values.has('orderUpdates')
+      });
+      if (userProfileMessage) {
+        userProfileMessage.textContent = 'Profile and settings saved.';
+        userProfileMessage.classList.remove('is-error');
+      }
+      document.getElementById('user-menu-name').textContent = profile.name;
+      document.getElementById('user-avatar').textContent = profile.name.charAt(0).toLocaleUpperCase();
+    } catch (error) {
+      if (userProfileMessage) {
+        userProfileMessage.textContent = `Could not save your profile: ${error.message}`;
+        userProfileMessage.classList.add('is-error');
+      }
+    }
+  });
+  document.getElementById('user-sign-out')?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(sessionStorageKey);
+      userMenuPanel.hidden = true;
+      userMenuTrigger.setAttribute('aria-expanded', 'false');
+      renderHeaderUser();
+    } catch (error) {
+      if (userProfileMessage) userProfileMessage.textContent = `Could not sign out: ${error.message}`;
+    }
+  });
+  window.addEventListener('coe-profile-updated', renderHeaderUser);
+  window.addEventListener('storage', (event) => {
+    if ([sessionStorageKey, profileStorageKey].includes(event.key)) renderHeaderUser();
+  });
+
+  const accountForm = document.getElementById('account-form');
+  if (accountForm) {
+    const accountModes = document.querySelectorAll('[data-account-mode]');
+    const nameField = document.getElementById('account-name-field');
+    const nameInput = document.getElementById('account-name');
+    const emailInput = document.getElementById('account-email');
+    const emailCodeButton = document.getElementById('account-send-code');
+    const phoneField = document.getElementById('account-phone-field');
+    const phoneInput = document.getElementById('account-phone');
+    const codeField = document.getElementById('account-code-field');
+    const codeInput = document.getElementById('account-code');
+    const verifyCodeButton = document.getElementById('account-verify-code');
+    const passwordInput = document.getElementById('account-password');
+    const confirmPasswordField = document.getElementById('account-confirm-password-field');
+    const confirmPasswordInput = document.getElementById('account-confirm-password');
+    const accountMessage = document.getElementById('account-message');
+    const accountPanel = document.getElementById('account-panel');
+    const accountFormPanel = document.getElementById('account-form-panel');
+    const accountNameDisplay = document.getElementById('account-name-display');
+    const accountEmailDisplay = document.getElementById('account-email-display');
+    const signOutButton = document.getElementById('account-sign-out');
+    const profileForm = document.getElementById('account-profile-form');
+    const profileMessage = document.getElementById('account-profile-message');
+    const accountProfileName = document.getElementById('account-profile-name');
+    const accountProfileAddress = document.getElementById('account-profile-address');
+    const accountProfileArea = document.getElementById('account-profile-area');
+    const accountOrderUpdates = document.getElementById('account-order-updates');
+    const accountKey = accountStorageKey;
+    const sessionKey = sessionStorageKey;
+    let codeSentEmail = '';
+    let verifiedEmail = '';
+    let accountMode = new URLSearchParams(window.location.search).get('mode') === 'create'
+      ? 'create'
+      : 'signin';
+
+    const setAccountMessage = (message, isError = false) => {
+      accountMessage.textContent = message;
+      accountMessage.classList.toggle('is-error', isError);
+    };
+
+    const renderAccountMode = () => {
+      const creating = accountMode === 'create';
+      nameField.hidden = !creating;
+      nameInput.required = creating;
+      phoneField.hidden = !creating;
+      phoneInput.required = false;
+      emailCodeButton.hidden = !creating;
+      codeField.hidden = !creating || !codeSentEmail || emailInput.value.trim().toLowerCase() !== codeSentEmail;
+      codeInput.required = creating && !verifiedEmail;
+      confirmPasswordField.hidden = !creating;
+      confirmPasswordInput.required = creating;
+      confirmPasswordInput.autocomplete = creating ? 'new-password' : 'off';
+      document.getElementById('account-submit').disabled = creating && verifiedEmail !== emailInput.value.trim().toLowerCase();
+      passwordInput.autocomplete = creating ? 'new-password' : 'current-password';
+      document.getElementById('account-submit').textContent = creating ? 'Create Account' : 'Sign In';
+      document.getElementById('account-heading').textContent = creating ? 'Create your account' : 'Welcome back';
+      document.getElementById('account-intro').textContent = creating
+        ? 'Use one account for your Cainta One Express requests.'
+        : 'Sign in to your Cainta One Express account.';
+      accountModes.forEach((button) => {
+        const selected = button.dataset.accountMode === accountMode;
+        button.setAttribute('aria-pressed', String(selected));
+      });
+      setAccountMessage('');
+    };
+
+    const derivePasswordHash = async (password, salt) => {
+      if (!window.crypto?.subtle) {
+        throw new Error('Account storage is unavailable in this browser. Open this page through a local web server.');
+      }
+      const key = await window.crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+      );
+      const bits = await window.crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+        key,
+        256
+      );
+      return Array.from(new Uint8Array(bits), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    };
+
+    const readApiResponse = async (response) => {
+      const body = await response.text();
+      let result;
+      try {
+        result = body ? JSON.parse(body) : {};
+      } catch {
+        const detail = body.trim().slice(0, 180);
+        if (response.status === 403 && /^forbidden\.?$/i.test(detail)) {
+          throw new Error('Email verification returned HTTP 403 Forbidden. Open the app at http://127.0.0.1:8000 (not as a local file) and make sure server.py is running.');
+        }
+        throw new Error(detail
+          ? `Email verification server returned HTTP ${response.status}: ${detail}`
+          : `Email verification server returned an unreadable response (HTTP ${response.status}).`);
+      }
+      if (!response.ok) {
+        throw new Error(result.error || `Email verification failed (HTTP ${response.status}).`);
+      }
+      return result;
+    };
+
+    const showSignedInAccount = (account) => {
+      accountNameDisplay.textContent = account.name;
+      accountEmailDisplay.textContent = account.email;
+      try {
+        const profile = getUserProfile(account);
+        accountProfileName.value = profile.name;
+        accountProfileAddress.value = profile.address;
+        accountProfileArea.value = profile.area;
+        accountOrderUpdates.checked = profile.orderUpdates;
+      } catch (error) {
+        console.error('Could not load account profile settings.', error);
+        if (profileMessage) {
+          profileMessage.textContent = `Could not load saved settings: ${error.message}`;
+          profileMessage.classList.add('is-error');
+        }
+      }
+      accountFormPanel.hidden = true;
+      accountPanel.hidden = false;
+    };
+
+    profileForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      try {
+        const values = new FormData(profileForm);
+        const profile = saveUserProfile({
+          name: values.get('name')?.toString() || '',
+          address: values.get('address')?.toString() || '',
+          area: values.get('area')?.toString() || '',
+          orderUpdates: values.has('orderUpdates')
+        });
+        accountNameDisplay.textContent = profile.name;
+        if (profileMessage) {
+          profileMessage.textContent = 'Profile and settings saved.';
+          profileMessage.classList.remove('is-error');
+        }
+      } catch (error) {
+        if (profileMessage) {
+          profileMessage.textContent = `Could not save your profile: ${error.message}`;
+          profileMessage.classList.add('is-error');
+        }
+      }
+    });
+
+    accountModes.forEach((button) => {
+      button.addEventListener('click', () => {
+        accountMode = button.dataset.accountMode;
+        codeSentEmail = '';
+        verifiedEmail = '';
+        codeInput.value = '';
+        renderAccountMode();
+      });
+    });
+
+    const updateEmailVerificationState = () => {
+      const currentEmail = emailInput.value.trim().toLowerCase();
+      if (currentEmail !== verifiedEmail) verifiedEmail = '';
+      if (currentEmail !== codeSentEmail) {
+        codeSentEmail = '';
+        codeInput.value = '';
+      }
+      codeField.hidden = accountMode !== 'create' || !codeSentEmail;
+      codeInput.required = accountMode === 'create' && !verifiedEmail;
+      document.getElementById('account-submit').disabled = accountMode === 'create' && !verifiedEmail;
+    };
+    emailInput.addEventListener('input', updateEmailVerificationState);
+
+    emailCodeButton.addEventListener('click', async () => {
+      if (!emailInput.reportValidity()) return;
+      const email = emailInput.value.trim().toLowerCase();
+      emailCodeButton.disabled = true;
+      setAccountMessage('Sending your email verification code...');
+      try {
+        const response = await fetch('/api/otp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const result = await readApiResponse(response);
+        if (emailInput.value.trim().toLowerCase() !== email) {
+          throw new Error('The email address changed. Send a new code to that address.');
+        }
+        codeSentEmail = email;
+        verifiedEmail = '';
+        codeInput.value = '';
+        codeField.hidden = false;
+        codeInput.required = true;
+        document.getElementById('account-submit').disabled = true;
+        codeInput.focus();
+        setAccountMessage(result.message || 'Verification code sent by email.');
+      } catch (error) {
+        setAccountMessage(error.message || 'Could not send the email verification code.', true);
+      } finally {
+        emailCodeButton.disabled = false;
+      }
+    });
+
+    verifyCodeButton.addEventListener('click', async () => {
+      if (!codeSentEmail || emailInput.value.trim().toLowerCase() !== codeSentEmail) {
+        setAccountMessage('Send a code to your current email address first.', true);
+        return;
+      }
+      const code = codeInput.value.trim();
+      if (!codeInput.reportValidity()) return;
+      verifyCodeButton.disabled = true;
+      setAccountMessage('Verifying your phone...');
+      try {
+        const response = await fetch('/api/otp/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: codeSentEmail, code })
+        });
+        await readApiResponse(response);
+        verifiedEmail = codeSentEmail;
+        codeInput.required = false;
+        document.getElementById('account-submit').disabled = false;
+        setAccountMessage('Email verified. You can create your account.');
+      } catch (error) {
+        verifiedEmail = '';
+        document.getElementById('account-submit').disabled = true;
+        setAccountMessage(error.message || 'That email code could not be verified.', true);
+      } finally {
+        verifyCodeButton.disabled = false;
+      }
+    });
+
+    accountForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submitButton = document.getElementById('account-submit');
+      submitButton.disabled = true;
+      setAccountMessage(accountMode === 'create' ? 'Creating your account...' : 'Signing you in...');
+
+      try {
+        const email = emailInput.value.trim().toLowerCase();
+        const password = passwordInput.value;
+        let savedAccount = JSON.parse(localStorage.getItem(accountKey) || 'null');
+        let account;
+
+        if (accountMode === 'create') {
+          if (!verifiedEmail || verifiedEmail !== email) {
+            throw new Error('Verify your email address before creating an account.');
+          }
+          if (passwordInput.value !== confirmPasswordInput.value) {
+            confirmPasswordInput.setCustomValidity('Passwords do not match.');
+            confirmPasswordInput.reportValidity();
+            throw new Error('Passwords do not match.');
+          }
+          confirmPasswordInput.setCustomValidity('');
+          if (savedAccount?.email === email) {
+            throw new Error('An account with this email already exists on this browser.');
+          }
+          const salt = window.crypto.getRandomValues(new Uint8Array(16));
+          const saltValue = Array.from(salt, (byte) => byte.toString(16).padStart(2, '0')).join('');
+          const passwordHash = await derivePasswordHash(password, salt);
+          account = {
+            name: nameInput.value.trim(),
+            email,
+            phone: phoneInput.value.trim(),
+            salt: saltValue,
+            passwordHash
+          };
+          localStorage.setItem(accountKey, JSON.stringify(account));
+        } else {
+          if (!savedAccount || savedAccount.email !== email) {
+            throw new Error('No matching account was found on this browser. Create an account first.');
+          }
+          const salt = Uint8Array.from(savedAccount.salt.match(/.{2}/g), (byte) => parseInt(byte, 16));
+          const passwordHash = await derivePasswordHash(password, salt);
+          if (passwordHash !== savedAccount.passwordHash) {
+            throw new Error('That password does not match this account.');
+          }
+          account = savedAccount;
+        }
+
+        localStorage.setItem(sessionKey, JSON.stringify({ name: account.name, email: account.email }));
+        if (accountMode === 'create' || !readLocalRecord(profileStorageKey)) {
+          saveUserProfile({
+            name: account.name,
+            address: '',
+            area: '',
+            orderUpdates: true
+          });
+        }
+        showSignedInAccount(account);
+        setAccountMessage('You are signed in on this browser.');
+      } catch (error) {
+        setAccountMessage(error.message || 'We could not complete that request.', true);
+      } finally {
+        submitButton.disabled = false;
+        if (accountMode === 'create' && !verifiedEmail) submitButton.disabled = true;
+      }
+    });
+
+    confirmPasswordInput.addEventListener('input', () => {
+      confirmPasswordInput.setCustomValidity(
+        confirmPasswordInput.value && confirmPasswordInput.value !== passwordInput.value
+          ? 'Passwords do not match.'
+          : ''
+      );
+    });
+    passwordInput.addEventListener('input', () => {
+      confirmPasswordInput.setCustomValidity(
+        confirmPasswordInput.value && confirmPasswordInput.value !== passwordInput.value
+          ? 'Passwords do not match.'
+          : ''
+      );
+    });
+
+    signOutButton.addEventListener('click', () => {
+      localStorage.removeItem(sessionKey);
+      accountPanel.hidden = true;
+      accountFormPanel.hidden = false;
+      accountForm.reset();
+      codeSentEmail = '';
+      verifiedEmail = '';
+      accountMode = 'signin';
+      renderAccountMode();
+    });
+
+    try {
+      const currentSession = JSON.parse(localStorage.getItem(sessionKey) || 'null');
+      if (currentSession?.email) {
+        showSignedInAccount(currentSession);
+      }
+    } catch {
+      localStorage.removeItem(sessionKey);
+    }
+    renderAccountMode();
+  }
+
+  const navLinks = document.querySelectorAll('.nav-menu a');
+  const sections = [...document.querySelectorAll('main section[id]')];
+
+  const updateActiveNav = () => {
+    let currentSection = 'home';
+
+    sections.forEach((section) => {
+      const rect = section.getBoundingClientRect();
+      if (rect.top <= 150 && rect.bottom >= 150) {
+        currentSection = section.id;
+      }
+    });
+
+    navLinks.forEach((link) => {
+      const isActive = link.getAttribute('href') === `#${currentSection}`;
+      link.classList.toggle('active', isActive);
+    });
+  };
+
+  updateActiveNav();
+  window.addEventListener('scroll', updateActiveNav, { passive: true });
+
+  document.querySelectorAll('a[href^="#"]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      const targetId = link.getAttribute('href');
+      if (!targetId || targetId === '#') return;
+
+      const target = document.querySelector(targetId);
+      if (!target) return;
+
+      event.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const quoteButtons = document.querySelectorAll('[data-quote]');
+  quoteButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const contactSection = document.getElementById('contact');
+      if (contactSection) {
+        contactSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  const statusText = document.querySelector('[data-status]');
+  if (statusText) {
+    statusText.textContent = 'Serving Cainta, Rizal';
+  }
+
+  const sellModal = document.getElementById('sell-modal');
+  const sellModalDialog = sellModal?.querySelector('.sell-modal-dialog');
+  const bazaarListingModal = document.getElementById('bazaar-listing-modal');
+  const bazaarListingForm = document.getElementById('bazaar-listing-form');
+  const bazaarListingMessage = document.getElementById('bazaar-listing-message');
+  const bazaarListingPhoto = document.getElementById('listing-photo');
+  const bazaarListingPhotoPreview = document.getElementById('listing-photo-preview');
+  const setBazaarListingMessage = (message, isError = false) => {
+    if (!bazaarListingMessage) return;
+    bazaarListingMessage.textContent = message;
+    bazaarListingMessage.classList.toggle('is-error', isError);
+  };
+  const sellTitle = document.getElementById('sell-modal-title');
+  const sellSubtitle = document.getElementById('sell-modal-subtitle');
+  const sellServiceField = document.getElementById('sell-service');
+  const sellForm = document.getElementById('sell-form');
+  const sellSuccess = document.getElementById('sell-success');
+  const orderAuthPrompt = document.getElementById('order-auth-prompt');
+  const orderAuthContinue = document.getElementById('order-auth-continue');
+  const orderAuthBack = document.getElementById('order-auth-back');
+  const orderAuthMessage = document.getElementById('order-auth-message');
+  const itemSearch = document.getElementById('item-search');
+  const itemName = document.getElementById('item-name');
+  const itemPrice = document.getElementById('item-price');
+  const bazaarItemFields = document.getElementById('bazaar-item-fields');
+  const foodCart = document.getElementById('food-cart');
+  const foodCartItems = document.getElementById('food-cart-items');
+  const foodCartCount = document.getElementById('food-cart-count');
+  const foodCartEmpty = document.getElementById('food-cart-empty');
+  const foodCartTotal = document.getElementById('food-cart-total');
+  const itemCategory = document.getElementById('item-category');
+  const itemRestaurant = document.getElementById('item-restaurant');
+  const itemFinder = document.querySelector('.item-finder');
+  const foodCheckoutFields = document.getElementById('food-checkout-fields');
+  const restaurantPicker = document.getElementById('food-restaurant-picker');
+  const restaurantList = document.getElementById('food-restaurant-list');
+  const selectedRestaurantPanel = document.getElementById('food-selected-restaurant');
+  const selectedRestaurantName = document.getElementById('food-selected-name');
+  const selectedRestaurantLocation = document.getElementById('food-selected-location');
+  const changeRestaurantButton = document.getElementById('food-change-restaurant');
+  const itemSuggestions = document.getElementById('item-suggestions');
+  const itemCategories = document.getElementById('item-categories');
+  const itemSuggestionList = document.getElementById('item-suggestion-list');
+  const itemSuggestionsLabel = document.getElementById('item-suggestions-label');
+  const itemSearchStatus = document.getElementById('item-search-status');
+  const bazaarSelectedSeller = document.getElementById('bazaar-selected-seller');
+  const deliveryAddress = document.getElementById('delivery-address');
+  const deliveryArea = document.getElementById('delivery-area');
+  const deliveryEstimate = document.getElementById('delivery-estimate');
+  const deliveryEstimateSummary = document.getElementById('delivery-estimate-summary');
+  const deliveryEstimateStatus = document.getElementById('delivery-estimate-status');
+  const deliveryMapLink = document.getElementById('delivery-map-link');
+  const deliveryProgress = document.getElementById('delivery-progress');
+  const paymentDemoNote = document.getElementById('payment-demo-note');
+  const sellSubmit = sellForm?.querySelector('[type="submit"]');
+  const caintaAreas = {
+    Junction: { label: 'Cainta Junction', lat: 14.5785, lon: 121.1130 },
+    'San Isidro': { label: 'San Isidro', lat: 14.5835, lon: 121.1110 },
+    Brookside: { label: 'Brookside', lat: 14.5812, lon: 121.1048 },
+    'Sto. Domingo': { label: 'Sto. Domingo', lat: 14.6000, lon: 121.1090 },
+    Karangalan: { label: 'Karangalan', lat: 14.6280, lon: 121.1080 }
+  };
+  const caintaBounds = [[14.547851, 121.0946307], [14.6365632, 121.1450774]];
+  const caintaBoundary = [
+    [
+      [121.0946307, 14.5690387], [121.0962712, 14.5648727], [121.0958435, 14.5640881],
+      [121.0980236, 14.5624516], [121.0962866, 14.5602645], [121.0981695, 14.558572],
+      [121.0980692, 14.5547713], [121.0992397, 14.5533099], [121.1011906, 14.5535188],
+      [121.1086074, 14.547851], [121.1126729, 14.5509639], [121.1187759, 14.5632903],
+      [121.119746, 14.562942], [121.1204038, 14.5662268], [121.1231111, 14.5659041],
+      [121.1240439, 14.5719457], [121.1261957, 14.5767014], [121.1272414, 14.5757423],
+      [121.1295629, 14.5773208], [121.130914, 14.5802699], [121.1321265, 14.5808855],
+      [121.1289414, 14.5821335], [121.1314782, 14.586233], [121.1325488, 14.5863618],
+      [121.1338712, 14.5848022], [121.1348771, 14.5867771], [121.1372034, 14.5864329],
+      [121.1407065, 14.5884534], [121.1413994, 14.5878034], [121.1426031, 14.5881594],
+      [121.1448134, 14.590336], [121.142893, 14.5913662], [121.1450774, 14.5913474],
+      [121.1449832, 14.5932865], [121.1382875, 14.5933442], [121.1372474, 14.590768],
+      [121.1364288, 14.5909458], [121.1363839, 14.5980364], [121.1337001, 14.5960683],
+      [121.1316067, 14.5966988], [121.1255997, 14.593682], [121.1201664, 14.5933327],
+      [121.1199035, 14.5958915], [121.1166713, 14.5961254], [121.1159988, 14.5989518],
+      [121.1172442, 14.6004727], [121.1172598, 14.6036106], [121.1162136, 14.6041432],
+      [121.1160738, 14.6060078], [121.1176546, 14.6091557], [121.1196454, 14.6081613],
+      [121.120253, 14.6065483], [121.1229038, 14.6057579], [121.1248643, 14.60618],
+      [121.127116, 14.605522], [121.1272646, 14.6072179], [121.1292958, 14.6080296],
+      [121.1305576, 14.6069751], [121.1310385, 14.6092595], [121.1327925, 14.6118019],
+      [121.1311173, 14.6119826], [121.1308254, 14.61474], [121.125004, 14.6141492],
+      [121.121052, 14.6159112], [121.1157596, 14.6153641], [121.1124769, 14.6126812],
+      [121.1117805, 14.6141865], [121.1071233, 14.61703], [121.1062307, 14.6198787],
+      [121.1011321, 14.6203623], [121.1009287, 14.6186568], [121.0987248, 14.6188825],
+      [121.0987089, 14.6166237], [121.1018279, 14.6160696], [121.1057649, 14.6034423],
+      [121.1058252, 14.6008033], [121.1034621, 14.6004132], [121.1029354, 14.5974769],
+      [121.1084271, 14.5931151], [121.1103043, 14.5941063], [121.1110273, 14.5910769],
+      [121.1083586, 14.5871533], [121.1081808, 14.5838964], [121.1091205, 14.581177],
+      [121.1083613, 14.5793694], [121.101526, 14.5753659], [121.1009791, 14.5733309],
+      [121.0983364, 14.5700121], [121.0946307, 14.5690387]
+    ],
+    [
+      [121.1038137, 14.62684], [121.1048565, 14.6234703], [121.1044143, 14.6224159],
+      [121.1063623, 14.6206824], [121.1063996, 14.6216519], [121.1076277, 14.6219017],
+      [121.1105694, 14.6324577], [121.111783, 14.6321712], [121.111763, 14.6361556],
+      [121.1086394, 14.6365632], [121.1077735, 14.6359908], [121.1054168, 14.6326782],
+      [121.1054762, 14.6303872], [121.1038137, 14.62684]
+    ]
+  ];
+  let deliveryMap = null;
+  let deliveryDriverMarker = null;
+  let deliverySimulationTimer = null;
+  let latestDelivery = null;
+  let selectedRestaurant = null;
+  let foodCartContents = [];
+  let sellIsFoodOrder = false;
+  // ---- Search items -------------------------------------------------------
+  // Food Express entries are menu picks. Use the restaurant as the category chip.
+  // Add or update menu picks here to match the restaurants and menus you offer.
+  //   item(menu item, restaurant, form Category dropdown, other words people may type, popular?)
+  const normalizeItemText = (value) => String(value)
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+  const item = (name, category, group, also = '', popular = false, price = null, seller = '') => ({
+    name,
+    category,
+    group,
+    popular,
+    price,
+    seller,
+    key: normalizeItemText(name),
+    icon: normalizeItemText(name).replace(/ /g, '-'),
+    nameWords: normalizeItemText(name).split(' '),
+    alsoWords: normalizeItemText(also).split(' ').filter(Boolean),
+    categoryWords: normalizeItemText(category).split(' ')
+  });
+
+  const itemCatalog = {
+    'Food Express': [
+      item('Chickenjoy', 'Jollibee', 'Food', 'fried chicken', true, 99),
+      item('Jolly Spaghetti', 'Jollibee', 'Food', 'spaghetti pasta', false, 65),
+      item('Yumburger', 'Jollibee', 'Food', 'burger', false, 45),
+      item('Big Mac', "McDonald's", 'Food', 'burger', false, 189),
+      item('Chicken McDo', "McDonald's", 'Food', 'fried chicken', true, 99),
+      item('McSpaghetti', "McDonald's", 'Food', 'spaghetti pasta', false, 79),
+      item('Original Recipe Chicken', 'KFC', 'Food', 'fried chicken', true, 99),
+      item('Zinger', 'KFC', 'Food', 'chicken sandwich burger', false, 155),
+      item('Famous Bowl', 'KFC', 'Food', 'chicken rice bowl', false, 99),
+      item('Chao Fan', 'Chowking', 'Food', 'fried rice', true, 79),
+      item('Pancit Canton', 'Chowking', 'Food', 'noodles', false, 89),
+      item('Pork Siomai', 'Chowking', 'Food', 'dumplings', false, 69),
+      item('Chicken Inasal', 'Mang Inasal', 'Food', 'grilled chicken', true, 139),
+      item('Pork BBQ', 'Mang Inasal', 'Food', 'barbecue grilled pork', false, 119),
+      item('Palabok', 'Mang Inasal', 'Food', 'noodles', false, 99),
+      item('Hawaiian Overload Pizza', 'Greenwich', 'Food', 'pizza', true, 299),
+      item('Lasagna Supreme', 'Greenwich', 'Food', 'lasagna pasta', false, 109),
+      item('Overload Fries', 'Greenwich', 'Food', 'fries potatoes', false, 99),
+      item('Whopper', 'Burger King', 'Food', 'burger', true, 189),
+      item('Chicken King', 'Burger King', 'Food', 'chicken burger sandwich', false, 99),
+      item('French Fries', 'Burger King', 'Food', 'fries potatoes', false, 59),
+      item('Popeyes Chicken Sandwich', 'Popeyes', 'Food', 'chicken burger sandwich', true, 169),
+      item('Signature Chicken', 'Popeyes', 'Food', 'fried chicken', false, 119),
+      item('Cajun Fries', 'Popeyes', 'Food', 'fries potatoes', false, 69)
+    ],
+    'Online Bazaar': [
+      item('Classic cotton T-shirt', 'Clothing', 'Fashion', 't shirt tshirt tee damit', true, 199, 'Cainta Closet'),
+      item('Basic crew-neck T-shirt', 'Clothing', 'Fashion', 't shirt tshirt tee plain', true, 179, 'Everyday Threads'),
+      item('Graphic print T-shirt', 'Clothing', 'Fashion', 't shirt tshirt tee printed', true, 249, 'Cainta Prints'),
+      item('Oversized cotton T-shirt', 'Clothing', 'Fashion', 't shirt tshirt tee loose', false, 229, 'Style Corner'),
+      item('Casual floral dress', 'Clothing', 'Fashion', 'dress gown women', true, 499, 'Cainta Closet'),
+      item('Everyday midi dress', 'Clothing', 'Fashion', 'dress gown casual', true, 429, 'Style Corner'),
+      item('Sleeveless summer dress', 'Clothing', 'Fashion', 'dress gown summer', false, 359, 'Everyday Finds'),
+      item('Straight-cut denim jeans', 'Clothing', 'Fashion', 'jeans pants denim', true, 599, 'Denim District'),
+      item('High-waist denim jeans', 'Clothing', 'Fashion', 'jeans pants denim women', true, 649, 'Cainta Closet'),
+      item('Relaxed-fit jeans', 'Clothing', 'Fashion', 'jeans pants denim men', false, 579, 'Everyday Threads'),
+      item('Casual polo shirt', 'Clothing', 'Fashion', 'polo shirt top', true, 399, 'Style Corner'),
+      item('Zip-up hoodie', 'Clothing', 'Fashion', 'hoodie sweater jacket', true, 699, 'Cainta Closet'),
+      item('Linen button-down shirt', 'Clothing', 'Fashion', 'shirt top linen men women', true, 549, 'Everyday Threads'),
+      item('Ribbed tank top', 'Clothing', 'Fashion', 'shirt top sleeveless tank women', true, 229, 'Style Corner'),
+      item('Lightweight windbreaker jacket', 'Clothing', 'Fashion', 'jacket coat windbreaker', false, 899, 'Cainta Closet'),
+      item('Kids printed cotton T-shirt', 'Clothing', 'Fashion', 'kids children t shirt tshirt tee', true, 179, 'Little Finds'),
+      item('Pleated office trousers', 'Clothing', 'Fashion', 'pants trousers slacks office', false, 599, 'Denim District'),
+      item('Running sneakers', 'Shoes', 'Fashion', 'shoes sneakers rubber sapatos', true, 1299, 'Sole Stop'),
+      item('Canvas sneakers', 'Shoes', 'Fashion', 'shoes sneakers rubber canvas', true, 899, 'Street Pair'),
+      item('Everyday walking shoes', 'Shoes', 'Fashion', 'shoes sneakers walking', false, 1099, 'Sole Stop'),
+      item('Comfort sandals', 'Shoes', 'Fashion', 'sandals shoes slippers', true, 349, 'Footwear Finds'),
+      item('Everyday slippers', 'Shoes', 'Fashion', 'slippers tsinelas flip flops', true, 149, 'Cainta Finds'),
+      item('Classic low-top sneakers', 'Shoes', 'Fashion', 'shoes sneakers casual rubber', true, 999, 'Street Pair'),
+      item('Lightweight running shoes', 'Shoes', 'Fashion', 'shoes sneakers running sports', true, 1499, 'Sole Stop'),
+      item('Adjustable slide sandals', 'Shoes', 'Fashion', 'sandals slides slippers', false, 299, 'Footwear Finds'),
+      item('Kids school shoes', 'Shoes', 'Fashion', 'shoes kids school children', true, 699, 'Little Finds'),
+      item('Non-slip kitchen clogs', 'Shoes', 'Fashion', 'shoes clogs non slip work', false, 399, 'Cainta Finds'),
+      item('Water-resistant backpack', 'Bags', 'Fashion', 'backpack bag school', true, 799, 'Pack & Go'),
+      item('Canvas tote bag', 'Bags', 'Fashion', 'tote bag handbag', true, 249, 'Everyday Finds'),
+      item('Crossbody shoulder bag', 'Bags', 'Fashion', 'bag purse handbag', false, 499, 'Style Corner'),
+      item('Laptop backpack with compartments', 'Bags', 'Fashion', 'backpack bag laptop work school', true, 1099, 'Pack & Go'),
+      item('Mini zippered shoulder bag', 'Bags', 'Fashion', 'bag purse shoulder mini', true, 399, 'Style Corner'),
+      item('Reusable grocery tote', 'Bags', 'Fashion', 'tote bag reusable shopping grocery', true, 129, 'Everyday Finds'),
+      item('Travel duffel bag', 'Bags', 'Fashion', 'bag travel duffel luggage', false, 899, 'Pack & Go'),
+      item('Digital wristwatch', 'Accessories', 'Fashion', 'watch relo wristwatch', true, 899, 'Time & Style'),
+      item('Classic baseball cap', 'Accessories', 'Fashion', 'cap hat', true, 199, 'Cainta Prints'),
+      item('Polarized sunglasses', 'Accessories', 'Fashion', 'sunglasses shades', false, 299, 'Everyday Finds'),
+      item('Minimalist analog wristwatch', 'Accessories', 'Fashion', 'watch relo wristwatch analog', true, 749, 'Time & Style'),
+      item('Everyday canvas belt', 'Accessories', 'Fashion', 'belt buckle fashion', true, 199, 'Everyday Finds'),
+      item('Stainless steel hoop earrings', 'Accessories', 'Fashion', 'jewelry earrings accessories', false, 249, 'Style Corner'),
+      item('Compact bi-fold wallet', 'Accessories', 'Fashion', 'wallet purse card holder', true, 349, 'Cainta Finds'),
+      item('Queen-size bed sheet set', 'Home', 'Home', 'bed sheets bedsheet linen', true, 699, 'Home Comforts'),
+      item('Kitchen storage containers', 'Home', 'Home', 'kitchenware containers food storage', true, 329, 'Home Comforts'),
+      item('Set of bath towels', 'Home', 'Home', 'towels towel', false, 399, 'Cainta Home Shop'),
+      item('Soft throw pillow set', 'Home', 'Home', 'pillow cushion home decor', true, 349, 'Home Comforts'),
+      item('Non-stick frying pan', 'Home', 'Home', 'kitchen cookware pan cooking', true, 599, 'Cainta Home Shop'),
+      item('Reusable water bottle 750 ml', 'Home', 'Home', 'bottle water drink reusable', true, 249, 'Brookside Home Shop'),
+      item('LED bedside table lamp', 'Home', 'Home', 'lamp lighting bedroom home', false, 499, 'Home Comforts'),
+      item('Foldable laundry basket', 'Home', 'Home', 'laundry basket storage home', true, 279, 'Cainta Home Shop'),
+      item('Microfiber cleaning cloth pack', 'Home', 'Home', 'cleaning cloth microfiber household', true, 99, 'Junction General Store'),
+      item('Ceramic dinner plate set', 'Home', 'Home', 'kitchen plates dinnerware ceramic', false, 749, 'Brookside Home Shop'),
+      item('Stanley Quencher H2.0 tumbler 40 oz', 'Home', 'Home', 'water tumbler insulated travel cup straw branded', true, 2499, 'Cainta Lifestyle Finds'),
+      item('Hydro Flask insulated tumbler 24 oz', 'Home', 'Home', 'water tumbler stainless steel bottle branded', true, 1899, 'Outdoor Finds Cainta'),
+      item('Owala FreeSip insulated water tumbler', 'Home', 'Home', 'water tumbler bottle straw branded', true, 1699, 'Everyday Finds'),
+      item('Contigo stainless steel travel tumbler', 'Home', 'Home', 'water tumbler mug travel cup branded', false, 999, 'Cainta Home Shop'),
+      item('Thermos vacuum-insulated water tumbler', 'Home', 'Home', 'water tumbler flask stainless steel branded', false, 1199, 'Home Comforts'),
+      item('Local stainless steel tumbler with straw', 'Home', 'Home', 'water tumbler insulated metal local', true, 349, 'Cainta Finds'),
+      item('Local 1-liter sports water tumbler', 'Home', 'Home', 'water tumbler bottle gym large local', true, 279, 'Junction General Store'),
+      item('Double-wall plastic tumbler with straw', 'Home', 'Home', 'water tumbler cup reusable cold drink local', true, 149, 'Brookside Home Shop'),
+      item('Personalized name water tumbler', 'Home', 'Home', 'water tumbler custom gift local', false, 399, 'Cainta Prints'),
+      item('Kids leakproof water tumbler', 'Home', 'Home', 'water tumbler children school bottle local', false, 229, 'Everyday Finds'),
+      item('Glass water tumbler with silicone sleeve', 'Home', 'Home', 'water tumbler cup reusable local', false, 199, 'Cainta Home Shop'),
+      item('Compact insulated coffee tumbler', 'Home', 'Home', 'water tumbler travel mug cup local', false, 299, 'Cainta Finds'),
+      item('Protective phone case', 'Electronics', 'Other', 'phone case cellphone cover', true, 199, 'Gadget Corner'),
+      item('Wireless earphones', 'Electronics', 'Other', 'earphones earbuds headphones', true, 599, 'Gadget Corner'),
+      item('Fast-charging cable', 'Electronics', 'Other', 'charger cable charging', false, 149, 'Cainta Tech Finds'),
+      item('Portable power bank', 'Electronics', 'Other', 'power bank powerbank charger', false, 799, 'Cainta Tech Finds'),
+      item('Bluetooth over-ear headphones', 'Electronics', 'Other', 'headphones headset audio bluetooth', true, 999, 'Gadget Corner'),
+      item('Bluetooth wireless mouse', 'Electronics', 'Other', 'mouse computer wireless bluetooth', true, 349, 'Cainta Tech Finds'),
+      item('USB-C fast wall charger', 'Electronics', 'Other', 'charger adapter usb c fast charging', true, 399, 'Gadget Corner'),
+      item('Adjustable phone stand', 'Electronics', 'Other', 'phone stand holder desk cellphone', false, 179, 'Cainta Tech Finds'),
+      item('Compact Bluetooth speaker', 'Electronics', 'Other', 'speaker bluetooth portable audio', true, 699, 'Gadget Corner'),
+      item('Wireless keyboard', 'Electronics', 'Other', 'keyboard computer wireless', false, 649, 'Cainta Tech Finds')
+    ]
+  };
+
+  const bazaarListingStorageKey = 'cainta-bazaar-listings';
+  let bazaarListingStorageError = null;
+  let pendingBazaarPhoto = '';
+  let bazaarPhotoProcessing = false;
+  let bazaarListings = [];
+  try {
+    const savedListings = localStorage.getItem(bazaarListingStorageKey);
+    if (savedListings) {
+      const parsedListings = JSON.parse(savedListings);
+      if (!Array.isArray(parsedListings)) throw new Error('Saved product listings are not a list.');
+      bazaarListings = parsedListings.filter((listing) =>
+        listing &&
+        typeof listing.id === 'string' &&
+        typeof listing.name === 'string' &&
+        typeof listing.category === 'string' &&
+        typeof listing.seller === 'string' &&
+        Number.isFinite(Number(listing.price)) &&
+        Number.isFinite(Number(listing.stock)) &&
+        typeof listing.description === 'string'
+      );
+      if (bazaarListings.length !== parsedListings.length) {
+        throw new Error('One or more saved product listings have invalid data.');
+      }
+    }
+  } catch (error) {
+    bazaarListingStorageError = error;
+    console.error('Could not load saved Bazaar product listings.', error);
+    setBazaarListingMessage('Saved listings could not be loaded. Clear this browser\'s Bazaar listing data before publishing another product.', true);
+  }
+  bazaarListings.forEach((listing) => {
+    const group = ['Clothing', 'Shoes', 'Bags', 'Accessories'].includes(listing.category)
+      ? 'Fashion'
+      : listing.category === 'Home' ? 'Home' : 'Other';
+    const entry = item(
+      listing.name,
+      listing.category,
+      group,
+      listing.description,
+      true,
+      Number(listing.price),
+      listing.seller
+    );
+    entry.photo = typeof listing.photo === 'string' ? listing.photo : '';
+    entry.stock = Number(listing.stock);
+    entry.listingId = listing.id;
+    itemCatalog['Online Bazaar'].push(entry);
+  });
+
+  const bazaarPhotoGroups = [
+    { category: 'Clothing', match: /t-shirt|polo|hoodie/, photos: ['photo-1521572163474-6864f9cf17ab', 'photo-1515886657613-9f3515b0c78f'] },
+    { category: 'Clothing', match: /dress/, photos: ['photo-1496747611176-843222e1e57c', 'photo-1595777457583-95e059d581b8'] },
+    { category: 'Clothing', match: /jeans/, photos: ['photo-1542272604-787c3835535d', 'photo-1515886657613-9f3515b0c78f'] },
+    { category: 'Shoes', match: /sneakers|shoes/, photos: ['photo-1542291026-7eec264c27ff', 'photo-1552346154-21d32810aba3', 'photo-1460353581641-37baddab0fa2'] },
+    { category: 'Shoes', match: /sandals|slippers/, photos: ['photo-1460353581641-37baddab0fa2', 'photo-1552346154-21d32810aba3'] },
+    { category: 'Bags', match: /backpack/, photos: ['photo-1553062407-98eeb64c6a62', 'photo-1584917865442-de89df76afd3'] },
+    { category: 'Bags', match: /bag/, photos: ['photo-1584917865442-de89df76afd3', 'photo-1553062407-98eeb64c6a62'] },
+    { category: 'Accessories', match: /watch/, photos: ['photo-1523275335684-37898b6baf30'] },
+    { category: 'Accessories', match: /sunglasses/, photos: ['photo-1511499767150-a48a237f0083'] },
+    { category: 'Accessories', match: /cap/, photos: ['photo-1515886657613-9f3515b0c78f'] },
+    { category: 'Home', match: /bed sheet/, photos: ['photo-1616486338812-3dadae4b4ace', 'photo-1600210492486-724fe5c67fb0'] },
+    { category: 'Home', match: /kitchen|container/, photos: ['photo-1556911220-e15b29be8c8f', 'photo-1600210492486-724fe5c67fb0'] },
+    { category: 'Home', match: /towel/, photos: ['photo-1600369671236-e74521d4b6ad', 'photo-1616486338812-3dadae4b4ace'] },
+    { category: 'Electronics', match: /earphone|headphone/, photos: ['photo-1505740420928-5e560c06d30e', 'photo-1511707171634-5f897ff02aa9'] },
+    { category: 'Electronics', match: /phone|cable|power bank/, photos: ['photo-1511707171634-5f897ff02aa9', 'photo-1519389950473-47ba0277781c'] }
+  ];
+  const bazaarCategoryPhotos = {
+    Clothing: ['photo-1521572163474-6864f9cf17ab', 'photo-1496747611176-843222e1e57c'],
+    Shoes: ['photo-1542291026-7eec264c27ff', 'photo-1552346154-21d32810aba3'],
+    Bags: ['photo-1553062407-98eeb64c6a62', 'photo-1584917865442-de89df76afd3'],
+    Accessories: ['photo-1523275335684-37898b6baf30', 'photo-1511499767150-a48a237f0083'],
+    Home: ['photo-1600210492486-724fe5c67fb0', 'photo-1616486338812-3dadae4b4ace'],
+    Electronics: ['photo-1511707171634-5f897ff02aa9', 'photo-1505740420928-5e560c06d30e']
+  };
+  const bazaarProductPhoto = (entry) => {
+    const name = entry.name.toLocaleLowerCase();
+    const group = bazaarPhotoGroups.find((photoGroup) =>
+      photoGroup.category === entry.category && photoGroup.match.test(name)
+    );
+    const photos = group?.photos || bazaarCategoryPhotos[entry.category];
+    if (!photos?.length) return null;
+
+    const stableIndex = [...entry.name].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 7);
+    return productPhoto(photos[stableIndex % photos.length], `Representative product photo for ${entry.name}`);
+  };
+
+  const restaurants = [
+    { name: 'Jollibee', area: 'Junction', photo: 'photo-1626082927389-6cd097cdc6ec' },
+    { name: "McDonald's", area: 'San Isidro', photo: 'photo-1568901346375-23c9450c58cd' },
+    { name: 'KFC', area: 'Brookside', photo: 'photo-1562967914-608f82629710' },
+    { name: 'Chowking', area: 'Sto. Domingo', photo: 'photo-1512058564366-18510be2db19' },
+    { name: 'Mang Inasal', area: 'Karangalan', photo: 'photo-1544025162-d76694265947' },
+    { name: 'Greenwich', area: 'Junction', photo: 'photo-1513104890138-7c749659a591' },
+    { name: 'Burger King', area: 'San Isidro', photo: 'photo-1550547660-d9450f859349' },
+    { name: 'Popeyes', area: 'Brookside', photo: 'photo-1562967914-608f82629710' }
+  ];
+  const foodPhoto = (photo) => `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=82`;
+  const foodPhotosByMenu = [
+    { terms: ['spaghetti', 'pasta', 'lasagna', 'noodles', 'pancit'], photo: 'photo-1473093295043-cdd812d0e601' },
+    { terms: ['pizza'], photo: 'photo-1513104890138-7c749659a591' },
+    { terms: ['burger', 'yumburger', 'whopper'], photo: 'photo-1568901346375-23c9450c58cd' },
+    { terms: ['chicken', 'inasal'], photo: 'photo-1626082927389-6cd097cdc6ec' },
+    { terms: ['fries', 'siomai', 'chao fan', 'bowl'], photo: 'photo-1512058564366-18510be2db19' }
+  ];
+
+  let activeItemCategory = 'All';
+  let itemSuggestionsDismissed = false;
+  let itemMatches = [];
+  let activeItemIndex = -1;
+  let sellTriggerToRestoreFocus = null;
+
+  const formatDeliveryDuration = (seconds) => {
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (!hours) return `${minutes} min`;
+    return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
+  };
+
+  const drawDeliveryMap = (destination, pickup, routeGeometry = null) => {
+    const mapElement = document.getElementById('delivery-map');
+    if (!mapElement || !window.L) {
+      return false;
+    }
+
+    if (deliveryMap) deliveryMap.remove();
+    const mapBounds = window.L.latLngBounds(caintaBounds);
+    deliveryMap = window.L.map(mapElement, {
+      maxBounds: mapBounds,
+      maxBoundsViscosity: 1
+    });
+    deliveryMap.setMinZoom(deliveryMap.getBoundsZoom(mapBounds));
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    }).addTo(deliveryMap);
+
+    const boundaryRings = caintaBoundary.map((ring) =>
+      ring.map(([lon, lat]) => [lat, lon])
+    );
+    const surroundingMask = [
+      [14.45, 120.95],
+      [14.45, 121.3],
+      [14.75, 121.3],
+      [14.75, 120.95]
+    ];
+    window.L.polygon([surroundingMask, ...boundaryRings], {
+      stroke: false,
+      fillColor: '#0b1f3a',
+      fillOpacity: 0.72,
+      fillRule: 'evenodd',
+      interactive: false
+    }).addTo(deliveryMap);
+    boundaryRings.forEach((ring) => {
+      window.L.polygon(ring, {
+        color: '#e58916',
+        weight: 3,
+        opacity: 1,
+        fillColor: '#f7a93b',
+        fillOpacity: 0.2,
+        interactive: false
+      }).addTo(deliveryMap);
+    });
+
+    const start = [pickup.lat, pickup.lon];
+    const end = [destination.lat, destination.lon];
+    window.L.marker(start).addTo(deliveryMap).bindPopup(`Restaurant pickup · ${pickup.label}, Cainta`);
+    window.L.marker(end).addTo(deliveryMap).bindPopup(`Delivery area · ${destination.label}, Cainta`);
+    const routePoints = routeGeometry
+      ? routeGeometry.coordinates.map(([lon, lat]) => [lat, lon])
+      : Array.from({ length: 31 }, (_, index) => [
+        start[0] + ((end[0] - start[0]) * index) / 30,
+        start[1] + ((end[1] - start[1]) * index) / 30
+      ]);
+    window.L.polyline(routePoints, { color: '#1f72d8', weight: 5, opacity: 0.85 }).addTo(deliveryMap);
+    deliveryDriverMarker = window.L.circleMarker(start, {
+      radius: 9,
+      color: '#ffffff',
+      weight: 3,
+      fillColor: '#1f72d8',
+      fillOpacity: 1
+    }).addTo(deliveryMap).bindPopup('Demo delivery driver');
+    deliveryMap.fitBounds(window.L.latLngBounds([start, end]), { padding: [28, 28], maxZoom: 15 });
+    window.setTimeout(() => deliveryMap?.invalidateSize(), 250);
+    return routePoints;
+  };
+
+  const startDeliverySimulation = (routePoints, roadRouteAvailable) => {
+    if (deliverySimulationTimer) window.clearInterval(deliverySimulationTimer);
+    const stages = [
+      'Order confirmed',
+      'Preparing at restaurant',
+      'Driver picked up',
+      'On the way',
+      'Delivered'
+    ];
+    if (deliveryProgress) {
+      deliveryProgress.replaceChildren();
+      stages.forEach((stage) => {
+        const step = document.createElement('li');
+        step.textContent = stage;
+        deliveryProgress.append(step);
+      });
+    }
+    const progressSteps = deliveryProgress ? [...deliveryProgress.children] : [];
+    let tick = 0;
+    const lastTick = 24;
+    const driverName = 'Alex Santos';
+    const update = () => {
+      const percent = Math.min(tick / lastTick, 1);
+      const pointIndex = Math.min(Math.round(percent * (routePoints.length - 1)), routePoints.length - 1);
+      const point = routePoints[pointIndex];
+      deliveryDriverMarker?.setLatLng(point);
+      const stageIndex = Math.min(Math.floor(percent * stages.length), stages.length - 1);
+      progressSteps.forEach((step, index) => {
+        step.classList.toggle('is-complete', index < stageIndex || percent === 1);
+        step.classList.toggle('is-current', index === stageIndex && percent < 1);
+      });
+      if (deliveryEstimateStatus) {
+        deliveryEstimateStatus.textContent = percent === 1
+          ? `Delivered! Demo order complete. Driver ${driverName} finished the trip.`
+          : `${stages[stageIndex]} · ${driverName} is delivering your order.`;
+      }
+      if (percent === 1) {
+        if (latestDelivery && !latestDelivery.delivered) {
+          latestDelivery.status = `Delivered! Demo order complete. Driver ${driverName} finished the trip.`;
+          latestDelivery.delivered = true;
+          notifyChatDeliveryArrived();
+        }
+        window.clearInterval(deliverySimulationTimer);
+        deliverySimulationTimer = null;
+      } else if (latestDelivery) {
+        latestDelivery.status = `${stages[stageIndex]} · ${driverName} is delivering your order.`;
+      }
+      tick += 1;
+    };
+    if (deliveryEstimateStatus && !roadRouteAvailable) {
+      deliveryEstimateStatus.textContent = 'Road routing is unavailable; showing a simulated direct route inside Cainta.';
+    }
+    update();
+    deliverySimulationTimer = window.setInterval(update, 1100);
+  };
+
+  const estimateDeliveryRoute = async () => {
+    if (!deliveryArea || !deliveryEstimate || !deliveryEstimateStatus || !deliveryEstimateSummary) return;
+    const destination = caintaAreas[deliveryArea.value];
+    const restaurantArea = selectedRestaurant && caintaAreas[selectedRestaurant.area];
+    if (!destination || !restaurantArea) {
+      throw new Error('Choose a restaurant and a delivery area in Cainta to continue.');
+    }
+    deliveryEstimate.hidden = false;
+    deliveryEstimate.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    deliveryEstimateSummary.textContent = '';
+    deliveryEstimateStatus.textContent = 'Preparing your Cainta delivery map...';
+    if (deliveryMapLink) deliveryMapLink.hidden = true;
+
+    const pickup = { ...restaurantArea, label: restaurantArea.label };
+    const start = [pickup.lat, pickup.lon];
+    const end = [destination.lat, destination.lon];
+    const osmRoute = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${pickup.lat},${pickup.lon};${destination.lat},${destination.lon}`;
+    if (deliveryMapLink) {
+      deliveryMapLink.href = osmRoute;
+      deliveryMapLink.hidden = false;
+    }
+
+    let route = null;
+    let routeError = '';
+    try {
+      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${pickup.lon},${pickup.lat};${destination.lon},${destination.lat}?overview=full&geometries=geojson`;
+      const routeResponse = await fetch(routeUrl);
+      if (!routeResponse.ok) throw new Error('Road routing service is unavailable.');
+      const routeResult = await routeResponse.json();
+      const candidate = routeResult.routes?.[0];
+      if (
+        routeResult.code !== 'Ok' ||
+        !candidate ||
+        !Array.isArray(candidate.geometry?.coordinates) ||
+        !Number.isFinite(candidate.duration) ||
+        !Number.isFinite(candidate.distance)
+      ) throw new Error('No road route was found for these Cainta demo pins.');
+      route = candidate;
+    } catch (error) {
+      routeError = error.message;
+    }
+
+    const routePoints = drawDeliveryMap(destination, pickup, route?.geometry);
+    const directDistanceKm = Math.hypot(
+      (destination.lat - pickup.lat) * 111,
+      (destination.lon - pickup.lon) * 107
+    );
+    const routeSummary = route
+      ? `About ${formatDeliveryDuration(route.duration)} by road · ${(route.distance / 1000).toFixed(1)} km`
+      : `Demo trip · about 5 min · ${directDistanceKm.toFixed(1)} km approximate distance${routeError ? ` · ${routeError}` : ''}`;
+    latestDelivery = {
+      summary: routeSummary,
+      status: 'Order confirmed',
+      delivered: false
+    };
+    const foodOrderSummary = foodCartContents
+      .map((line) => `${line.quantity} × ${line.entry.name}`)
+      .join(', ');
+    const foodOrderTotal = foodCartContents.reduce((amount, line) => amount + line.entry.price * line.quantity, 0);
+    deliveryEstimateSummary.textContent = sellIsFoodOrder
+      ? `${foodOrderSummary} from ${selectedRestaurant.name} · PHP ${foodOrderTotal.toFixed(2)} · ${routeSummary}`
+      : routeSummary;
+    if (sellIsFoodOrder) {
+      startDeliverySimulation(
+        routePoints || Array.from({ length: 25 }, (_, index) => [
+          start[0] + ((end[0] - start[0]) * index) / 24,
+          start[1] + ((end[1] - start[1]) * index) / 24
+        ]),
+        Boolean(route)
+      );
+    } else {
+      deliveryEstimateStatus.textContent = route
+        ? 'Route shown from the Cainta service area to the approximate delivery location.'
+        : `${routeError || 'Road route unavailable.'} Approximate Cainta route shown instead.`;
+    }
+    if (!route && routeError && !window.L && deliveryEstimateStatus) {
+      deliveryEstimateStatus.textContent = `${routeError} The map library is also unavailable, but the demo delivery timeline will still run.`;
+    } else if (!window.L && deliveryEstimateStatus) {
+      deliveryEstimateStatus.textContent = 'The map library is unavailable; the demo delivery timeline will still run.';
+    }
+  };
+
+  // Pictures: each item and category has a drawing in the hidden icon sprite inside main.html
+  // (symbol ids look like "ic-chicken", "ic-t-shirts"). Anything without a drawing shows a parcel box.
+  // Use exact displayed category/item names as keys. Image paths are relative to main.html; type "banner"
+  // blends the image behind the block, while "icon" keeps it in the image slot.
+  const categoryImages = {
+    // Example: Fresh: { src: 'images/fresh.jpg', type: 'banner' }
+  };
+  const productPhoto = (photo, alt) => ({
+    src: `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=640&h=640&q=85`,
+    type: 'icon',
+    alt
+  });
+  const tumblerPhotoIds = [
+    'photo-1581157019452-2b854e1a020a',
+    'photo-1602143407151-7111542de6e8',
+    'photo-1550736386-78b14d2601f8',
+    'photo-1625708458528-802ec79b1ed8',
+    'photo-1789925941122-8162d3628b47',
+    'photo-1561050933-0fc672aef36c',
+    'photo-1789276392869-8103c256a501',
+    'photo-1523362628745-0c100150b504',
+    'photo-1605276374104-dee2a0ed3cd6',
+    'photo-1517701550927-30cf4ba1dba5',
+    'photo-1590649880765-91b1956b8276',
+    'photo-1544787219-7f47ccb76574'
+  ];
+  const tumblerNames = [
+    'Stanley Quencher H2.0 tumbler 40 oz',
+    'Hydro Flask insulated tumbler 24 oz',
+    'Owala FreeSip insulated water tumbler',
+    'Contigo stainless steel travel tumbler',
+    'Thermos vacuum-insulated water tumbler',
+    'Local stainless steel tumbler with straw',
+    'Local 1-liter sports water tumbler',
+    'Double-wall plastic tumbler with straw',
+    'Personalized name water tumbler',
+    'Kids leakproof water tumbler',
+    'Glass water tumbler with silicone sleeve',
+    'Compact insulated coffee tumbler'
+  ];
+  const itemImages = Object.fromEntries(tumblerNames.map((name, index) => [
+    name,
+    productPhoto(tumblerPhotoIds[index], `Representative photo for ${name}`)
+  ]));
+
+  const categoryIcons = {
+    All: 'all',
+    Jollibee: 'chicken',
+    "McDonald's": 'fried-chicken',
+    KFC: 'chicken',
+    Chowking: 'noodles',
+    'Mang Inasal': 'adobo',
+    Greenwich: 'pizza',
+    'Burger King': 'burger',
+    Popeyes: 'fried-chicken',
+    Fresh: 'vegetables',
+    Pantry: 'cooking-oil',
+    Snacks: 'snacks',
+    Drinks: 'softdrinks',
+    Meals: 'adobo',
+    Clothing: 't-shirts',
+    Shoes: 'sneakers',
+    Bags: 'handbags',
+    Accessories: 'watches',
+    Home: 'home-decor',
+    Electronics: 'electronics'
+  };
+
+  const makeIcon = (name) => {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 64 64');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    const use = document.createElementNS(svgNS, 'use');
+    use.setAttribute('href', `#ic-${document.getElementById(`ic-${name}`) ? name : 'default'}`);
+    svg.append(use);
+    return svg;
+  };
+
+  const addConfiguredImage = (container, imageConfig, fallbackIcon, bannerClass) => {
+    if (!imageConfig?.src) {
+      container.append(makeIcon(fallbackIcon));
+      return false;
+    }
+
+    const image = document.createElement('img');
+    image.src = imageConfig.src;
+    image.alt = imageConfig.alt || '';
+    image.className = imageConfig.type === 'banner' ? bannerClass : 'item-picture-icon';
+    image.addEventListener('error', () => image.replaceWith(makeIcon(fallbackIcon)), { once: true });
+    container.append(image);
+    return imageConfig.type === 'banner';
+  };
+
+  // Edit distance that counts two swapped neighbouring letters as one typo ("shrit" -> "shirt").
+  const typoDistance = (a, b) => {
+    const rows = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j += 1) rows[0][j] = j;
+    for (let i = 1; i <= a.length; i += 1) {
+      for (let j = 1; j <= b.length; j += 1) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+          rows[i][j] = Math.min(rows[i][j], rows[i - 2][j - 2] + 1);
+        }
+      }
+    }
+    return rows[a.length][b.length];
+  };
+
+  const isCloseSpelling = (token, words) => {
+    const allowed = token.length >= 7 ? 2 : token.length >= 4 ? 1 : 0;
+    if (!allowed) return false;
+    return words.some((word) => word.length >= 3 && (
+      typoDistance(token, word) <= allowed ||
+      typoDistance(token, word.slice(0, token.length)) <= allowed
+    ));
+  };
+
+  // Higher score = better guess. Every word you typed has to match something.
+  const scoreItem = (entry, tokens, allowTypos) => {
+    let total = 0;
+    for (const token of tokens) {
+      let best = 0;
+      if (entry.nameWords.some((word) => word.startsWith(token))) best = 4;
+      else if (entry.nameWords.some((word) => word.includes(token))) best = 2.5;
+      else if (entry.alsoWords.some((word) => word.startsWith(token))) best = 2;
+      else if (entry.alsoWords.some((word) => word.includes(token))) best = 1.2;
+      else if (entry.categoryWords.some((word) => word.startsWith(token))) best = 1;
+      else if (allowTypos && (isCloseSpelling(token, entry.nameWords) || isCloseSpelling(token, entry.alsoWords))) best = 0.8;
+      if (!best) return 0;
+      total += best;
+    }
+    return total + (entry.key.startsWith(tokens.join(' ')) ? 3 : 0);
+  };
+
+  const findItemMatches = (serviceName, query, category) => {
+    const pool = (itemCatalog[serviceName] || [])
+      .filter((entry) => category === 'All' || entry.category === category);
+    const tokens = normalizeItemText(query).split(' ').filter(Boolean);
+
+    if (!tokens.length) {
+      const list = category === 'All' ? pool.filter((entry) => entry.popular) : pool;
+      const limit = serviceName === 'Online Bazaar' ? 12 : 8;
+      return { label: serviceName === 'Online Bazaar' ? 'Popular product listings' : category === 'All' ? 'Popular menu picks' : `${category} menu`, entries: list.slice(0, limit), tokens };
+    }
+
+    for (const allowTypos of [false, true]) {
+      const hits = pool
+        .map((entry) => ({ entry, score: scoreItem(entry, tokens, allowTypos) }))
+        .filter((hit) => hit.score > 0)
+        .sort((a, b) =>
+          b.score - a.score ||
+          Number(b.entry.popular) - Number(a.entry.popular) ||
+          a.entry.name.localeCompare(b.entry.name))
+        .slice(0, serviceName === 'Online Bazaar' ? 12 : 6);
+      if (hits.length) {
+        return {
+          label: allowTypos ? 'Did you mean' : serviceName === 'Online Bazaar' ? 'Product listings' : 'Suggestions',
+          entries: hits.map((hit) => hit.entry),
+          tokens: allowTypos ? [] : tokens
+        };
+      }
+    }
+    return { label: '', entries: [], tokens };
+  };
+
+  const chatPanel = document.getElementById('assistant-chat-panel');
+  const chatToggle = document.getElementById('assistant-chat-toggle');
+  const chatClose = document.getElementById('assistant-chat-close');
+  const chatForm = document.getElementById('assistant-chat-form');
+  const chatInput = document.getElementById('assistant-chat-input');
+  const chatMessages = document.getElementById('assistant-chat-messages');
+  const chatUnread = document.getElementById('assistant-chat-unread');
+  const chatNotifications = document.getElementById('assistant-chat-notifications');
+  let chatNotificationsEnabled = false;
+
+  const addChatMessage = (message, sender = 'assistant') => {
+    if (!chatMessages) return;
+    const bubble = document.createElement('p');
+    bubble.className = `assistant-chat-message ${sender === 'user' ? 'is-user' : 'is-assistant'}`;
+    bubble.textContent = message;
+    chatMessages.append(bubble);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    if (sender === 'assistant' && chatPanel?.hidden && chatUnread) {
+      chatUnread.hidden = false;
+    }
+  };
+
+  const notifyChatDeliveryArrived = () => {
+    const message = 'Your demo order has arrived! The driver completed the simulated delivery.';
+    addChatMessage(message);
+    if (chatNotificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('Your order has arrived', { body: message });
+      } catch (error) {
+        console.error('Could not show the browser delivery notification.', error);
+      }
+    }
+  };
+
+  const answerChatQuestion = (question) => {
+    const normalized = normalizeItemText(question);
+    if (/^(hi|hello|hey|help|start)$/.test(normalized)) {
+      return 'Ask me “how long is my delivery?”, “cheapest burger”, or “best deals on shirts”. I can compare the demo listings and report simulated order status.';
+    }
+    if (/\b(delivery|deliver|arrive|arrival|order|package|tracking|eta)\b/.test(normalized)) {
+      if (latestDelivery) {
+        return latestDelivery.delivered
+          ? `Your latest demo order is delivered. ${latestDelivery.summary}.`
+          : `Your latest demo delivery status: ${latestDelivery.status} ${latestDelivery.summary}. The road time is an estimate for the route only, not a live courier ETA.`;
+      }
+      return 'There is no active delivery to track. For a route estimate, place a Food Express demo order after choosing a restaurant and Cainta delivery area. The map uses approximate demo pins; Bazaar requests do not have live parcel tracking yet.';
+    }
+    if (/\b(deal|deals|cheap|cheapest|price|prices|compare|lowest|best)\b/.test(normalized)) {
+      const mentionsFood = /\b(food|meal|dish|menu|restaurant|burger|chicken|pizza|fries|noodles|spaghetti|siomai|chowking|jollibee|kfc|popeyes|greenwich|inasal|chao fan|big mac|yumburger)\b/.test(normalized);
+      const mentionsBazaar = /\b(bazaar|product|products|clothes|clothing|shirt|shirts|shoes|sneakers|bags|electronics|accessories|home)\b/.test(normalized);
+      const service = mentionsFood && !mentionsBazaar ? 'Food Express' : 'Online Bazaar';
+      const ignoredWords = new Set([
+        'best', 'deal', 'deals', 'cheap', 'cheapest', 'price', 'prices', 'compare', 'lowest',
+        'find', 'show', 'me', 'the', 'for', 'on', 'in', 'at', 'of', 'a', 'an', 'and',
+        'food', 'meal', 'dish', 'menu', 'restaurant', 'bazaar', 'product', 'products',
+        'market', 'clothes', 'clothing', 'please', 'what', 'is', 'are', 'some'
+      ]);
+      const terms = normalized.split(' ').filter((word) => word && !ignoredWords.has(word));
+      const catalog = itemCatalog[service] || [];
+      const candidates = terms.length
+        ? findItemMatches(service, terms.join(' '), 'All').entries
+        : catalog;
+      const affordable = candidates
+        .filter((entry) => Number.isFinite(Number(entry.price)) && Number(entry.price) > 0)
+        .sort((a, b) => Number(a.price) - Number(b.price))
+        .slice(0, 3);
+      if (!affordable.length) {
+        return `I couldn't find a matching ${service === 'Food Express' ? 'menu item' : 'product'} in the demo catalog. Try a broader search term.`;
+      }
+      const offers = affordable.map((entry) =>
+        `${entry.name} — PHP ${Number(entry.price).toFixed(2)}${service === 'Food Express' ? ` at ${entry.category}` : ` from ${entry.seller || 'a local seller'}`}`
+      );
+      return `Lowest listed ${service === 'Food Express' ? 'menu prices' : 'product prices'} in the demo catalog: ${offers.join('; ')}. These are price comparisons, not verified sale discounts.`;
+    }
+
+    const mentionsFood = /\b(food|meal|dish|menu|restaurant|jollibee|mcdonalds|kfc|chowking|inasal|greenwich|popeyes|burger king|burger|chicken|pizza|fries|spaghetti|siomai|big mac|yumburger)\b/.test(normalized);
+    const mentionsBazaar = /\b(bazaar|product|clothes|clothing|shirt|shirts|shoes|sneakers|bags|electronics|accessories|home)\b/.test(normalized);
+    const service = mentionsFood && !mentionsBazaar ? 'Food Express' : 'Online Bazaar';
+    const terms = normalized.split(' ').filter((word) => ![
+      'do', 'you', 'have', 'what', 'is', 'the', 'tell', 'me', 'about', 'show', 'find', 'a', 'an', 'please'
+    ].includes(word));
+    const matches = findItemMatches(service, terms.join(' '), 'All').entries.slice(0, 3);
+    if (matches.length) {
+      return matches.map((entry) =>
+        `${entry.name}: PHP ${Number(entry.price).toFixed(2)}${service === 'Food Express' ? ` at ${entry.category}` : ` from ${entry.seller || 'a local seller'}`}.`
+      ).join(' ');
+    }
+    return 'I can answer from the current demo catalog only. Ask about a product or meal, compare prices, or check an active demo delivery.';
+  };
+
+  chatToggle?.addEventListener('click', () => {
+    const opening = Boolean(chatPanel?.hidden);
+    if (chatPanel) chatPanel.hidden = !opening;
+    chatToggle.setAttribute('aria-expanded', String(opening));
+    if (opening) {
+      if (chatUnread) chatUnread.hidden = true;
+      chatInput?.focus();
+    }
+  });
+  chatClose?.addEventListener('click', () => {
+    if (chatPanel) chatPanel.hidden = true;
+    chatToggle?.setAttribute('aria-expanded', 'false');
+    chatToggle?.focus();
+  });
+  chatForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const question = chatInput?.value.trim();
+    if (!question) return;
+    addChatMessage(question, 'user');
+    addChatMessage(answerChatQuestion(question));
+    chatForm.reset();
+    chatInput?.focus();
+  });
+  chatNotifications?.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      addChatMessage('This browser does not support desktop notifications. I will still show arrival updates here while the page is open.');
+      return;
+    }
+    try {
+      const permission = Notification.permission === 'default'
+        ? await Notification.requestPermission()
+        : Notification.permission;
+      chatNotificationsEnabled = permission === 'granted';
+      chatNotifications.textContent = chatNotificationsEnabled ? 'Arrival notifications enabled' : 'Browser notifications blocked';
+      if (!chatNotificationsEnabled) {
+        addChatMessage('Browser notifications were not enabled. Arrival updates will still appear in this chat while the page is open.');
+      } else {
+        addChatMessage('Browser arrival notifications are enabled for this page.');
+      }
+    } catch (error) {
+      console.error('Could not enable browser delivery notifications.', error);
+      addChatMessage('Could not enable browser notifications. Arrival updates will still appear here while the page is open.');
+    }
+  });
+  addChatMessage('Hi! Ask me about demo delivery status or the lowest matching prices. Try “best deals on shirts” or “cheapest burger”.');
+  if (chatUnread) chatUnread.hidden = true;
+
+  const appendHighlighted = (parent, text, tokens) => {
+    const parts = [...tokens]
+      .sort((a, b) => b.length - a.length)
+      .map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    if (!parts.length) {
+      parent.append(text);
+      return;
+    }
+    text.split(new RegExp(`(${parts.join('|')})`, 'gi')).forEach((piece, index) => {
+      if (!piece) return;
+      if (index % 2) {
+        const mark = document.createElement('mark');
+        mark.textContent = piece;
+        parent.append(mark);
+      } else {
+        parent.append(piece);
+      }
+    });
+  };
+
+  const setActiveItem = (index, scroll = true) => {
+    const options = itemSuggestionList ? [...itemSuggestionList.querySelectorAll('[role="option"]')] : [];
+    activeItemIndex = options.length ? Math.max(-1, Math.min(index, options.length - 1)) : -1;
+    options.forEach((option, i) => {
+      const on = i === activeItemIndex;
+      option.classList.toggle('is-active', on);
+      option.setAttribute('aria-selected', String(on));
+    });
+    if (activeItemIndex >= 0) {
+      itemSearch?.setAttribute('aria-activedescendant', options[activeItemIndex].id);
+      if (scroll) options[activeItemIndex].scrollIntoView({ block: 'nearest' });
+    } else {
+      itemSearch?.removeAttribute('aria-activedescendant');
+    }
+  };
+
+  const renderFoodCart = () => {
+    if (!foodCartItems) return;
+    foodCartItems.replaceChildren();
+    const itemCount = foodCartContents.reduce((count, line) => count + line.quantity, 0);
+    const subtotal = foodCartContents.reduce((amount, line) => amount + line.entry.price * line.quantity, 0);
+    if (foodCartCount) foodCartCount.textContent = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`;
+    if (foodCartTotal) foodCartTotal.textContent = `PHP ${subtotal.toFixed(2)}`;
+    if (foodCartEmpty) foodCartEmpty.hidden = itemCount > 0;
+    foodCartContents.forEach((line) => {
+      const row = document.createElement('li');
+      row.className = 'food-cart-line';
+      const name = document.createElement('span');
+      name.className = 'food-cart-line-name';
+      name.textContent = line.entry.name;
+      const price = document.createElement('span');
+      price.className = 'food-cart-line-price';
+      price.textContent = `PHP ${(line.entry.price * line.quantity).toFixed(2)}`;
+      const quantity = document.createElement('div');
+      quantity.className = 'food-cart-quantity';
+      const decrease = document.createElement('button');
+      decrease.type = 'button';
+      decrease.textContent = '−';
+      decrease.setAttribute('aria-label', `Remove one ${line.entry.name}`);
+      decrease.disabled = line.quantity <= 1;
+      decrease.addEventListener('click', () => {
+        line.quantity -= 1;
+        renderFoodCart();
+      });
+      const count = document.createElement('span');
+      count.textContent = String(line.quantity);
+      const increase = document.createElement('button');
+      increase.type = 'button';
+      increase.textContent = '+';
+      increase.setAttribute('aria-label', `Add one ${line.entry.name}`);
+      increase.addEventListener('click', () => {
+        if (line.quantity < 50) line.quantity += 1;
+        renderFoodCart();
+      });
+      quantity.append(decrease, count, increase);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'food-cart-remove';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', `Remove ${line.entry.name} from cart`);
+      remove.addEventListener('click', () => {
+        foodCartContents = foodCartContents.filter((cartLine) => cartLine !== line);
+        renderFoodCart();
+      });
+      row.append(name, quantity, price, remove);
+      foodCartItems.append(row);
+    });
+    if (sellSubmit && sellIsFoodOrder) {
+      sellSubmit.textContent = itemCount
+        ? `Checkout · PHP ${subtotal.toFixed(2)} (demo)`
+        : 'Add items to your cart';
+      sellSubmit.disabled = itemCount === 0;
+    }
+  };
+
+  const addToFoodCart = (entry) => {
+    const existingLine = foodCartContents.find((line) => line.entry.name === entry.name);
+    if (existingLine) {
+      if (existingLine.quantity < 50) existingLine.quantity += 1;
+    } else {
+      foodCartContents.push({ entry, quantity: 1 });
+    }
+    renderFoodCart();
+    if (itemSearchStatus) itemSearchStatus.textContent = `${entry.name} added to cart`;
+  };
+
+  const pickItem = (entry) => {
+    if (!itemSearch || !itemName) return;
+    itemSearch.value = entry.name;
+    itemName.value = entry.name;
+    if (itemRestaurant) {
+      itemRestaurant.value = sellServiceField?.value === 'Food Express' ? entry.category : entry.seller || '';
+    }
+    if (itemCategory) itemCategory.value = entry.group;
+    if (bazaarSelectedSeller) {
+      bazaarSelectedSeller.textContent = entry.seller ? `Sold by ${entry.seller}` : '';
+      bazaarSelectedSeller.hidden = sellServiceField?.value !== 'Online Bazaar' || !entry.seller;
+    }
+    if (itemPrice) {
+      itemPrice.value = entry.price ? String(entry.price) : '';
+      itemPrice.readOnly = Boolean(entry.price);
+      itemPrice.placeholder = entry.price ? '' : 'Enter your budget';
+    }
+    const itemPriceLabel = document.querySelector('label[for="item-price"]');
+    if (itemPriceLabel && sellServiceField?.value === 'Online Bazaar') {
+      itemPriceLabel.textContent = entry.price ? 'Listing price (PHP)' : 'Your budget (PHP)';
+    }
+    itemSuggestionsDismissed = true;
+    renderItemSuggestions(sellServiceField?.value || '', entry.name);
+    if (itemSearchStatus) itemSearchStatus.textContent = `${entry.name} selected`;
+    itemSearch.focus();
+  };
+
+  const renderItemCategories = (serviceName) => {
+    if (!itemCategories) return;
+    itemCategories.replaceChildren();
+    if (serviceName === 'Food Express') {
+      itemCategories.hidden = true;
+      return;
+    }
+    itemCategories.hidden = false;
+    ['All', ...new Set((itemCatalog[serviceName] || []).map((entry) => entry.category))].forEach((category) => {
+      const button = document.createElement('button');
+      button.className = 'item-category';
+      button.type = 'button';
+      const image = document.createElement('span');
+      image.className = 'item-category-img';
+      const isBanner = addConfiguredImage(image, categoryImages[category], categoryIcons[category] || 'default', 'item-category-banner');
+      if (isBanner) {
+        const banner = image.firstElementChild;
+        image.removeChild(banner);
+        button.classList.add('has-banner');
+        button.append(banner);
+      } else {
+        button.append(image);
+      }
+      const label = document.createElement('span');
+      label.className = 'item-category-label';
+      label.textContent = category;
+      button.append(label);
+      button.setAttribute('aria-pressed', String(category === activeItemCategory));
+      button.addEventListener('click', () => {
+        activeItemCategory = category;
+        if (itemRestaurant) {
+          itemRestaurant.value = serviceName === 'Food Express' && category !== 'All' ? category : '';
+        }
+        itemSuggestionsDismissed = false;
+        itemCategories.querySelectorAll('.item-category').forEach((chip) => {
+          chip.setAttribute('aria-pressed', String(chip === button));
+        });
+        renderItemSuggestions(serviceName, itemSearch?.value || '');
+      });
+      itemCategories.append(button);
+    });
+  };
+
+  const renderRestaurants = () => {
+    if (!restaurantList) return;
+    restaurantList.replaceChildren();
+    restaurants.forEach((restaurant) => {
+      const area = caintaAreas[restaurant.area];
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'food-restaurant-card';
+      const image = document.createElement('img');
+      image.src = foodPhoto(restaurant.photo);
+      image.alt = '';
+      image.loading = 'lazy';
+      const name = document.createElement('span');
+      name.textContent = restaurant.name;
+      const location = document.createElement('small');
+      location.textContent = `Demo pickup · ${area.label}, Cainta`;
+      card.append(image, name, location);
+      card.addEventListener('click', () => {
+        selectedRestaurant = restaurant;
+        if (sellTitle) sellTitle.textContent = `${restaurant.name} menu`;
+        if (restaurantPicker) restaurantPicker.hidden = true;
+        if (selectedRestaurantPanel) selectedRestaurantPanel.hidden = false;
+        if (selectedRestaurantName) selectedRestaurantName.textContent = restaurant.name;
+        if (selectedRestaurantLocation) selectedRestaurantLocation.textContent = `Pickup · ${area.label}, Cainta`;
+        if (itemRestaurant) itemRestaurant.value = restaurant.name;
+        if (itemCategory) itemCategory.value = 'Food';
+        if (itemSearch) {
+          itemSearch.value = '';
+          itemSearch.placeholder = `Search ${restaurant.name} menu`;
+        }
+        if (bazaarSelectedSeller) bazaarSelectedSeller.hidden = true;
+        if (itemName) itemName.value = '';
+        foodCartContents = [];
+        renderFoodCart();
+        if (foodCart) foodCart.hidden = false;
+        if (itemPrice) itemPrice.value = '';
+        document.getElementById('item-details').value = '';
+        activeItemCategory = restaurant.name;
+        if (itemFinder) itemFinder.hidden = false;
+        if (foodCheckoutFields) foodCheckoutFields.hidden = false;
+        itemSuggestionsDismissed = false;
+        renderItemSuggestions('Food Express');
+        itemSearch?.focus();
+      });
+      restaurantList.append(card);
+    });
+  };
+
+  const renderItemSuggestions = (serviceName, query = '') => {
+    if (!itemSuggestions || !itemSuggestionList) return;
+    itemSuggestions.classList.toggle('marketplace-listings', serviceName === 'Online Bazaar');
+    itemSuggestionList.replaceChildren();
+    activeItemIndex = -1;
+    itemSearch?.removeAttribute('aria-activedescendant');
+
+    const result = findItemMatches(serviceName, query, activeItemCategory);
+    itemMatches = result.entries;
+    const typed = query.trim().length > 0;
+
+    if (itemSuggestionsDismissed || (!result.entries.length && !typed)) {
+      itemSuggestions.hidden = true;
+      itemSearch?.setAttribute('aria-expanded', 'false');
+      if (itemSearchStatus) itemSearchStatus.textContent = '';
+      return;
+    }
+
+    itemSuggestions.hidden = false;
+    itemSearch?.setAttribute('aria-expanded', 'true');
+
+    if (!result.entries.length) {
+      itemSuggestionsLabel.textContent = 'No matches';
+      const empty = document.createElement('li');
+      empty.className = 'item-suggestion-empty';
+      empty.setAttribute('role', 'presentation');
+      empty.textContent = activeItemCategory === 'All'
+        ? 'We could not find that. You can still type your own item and send the request.'
+        : `Nothing in ${activeItemCategory} matches. Try All, or type your own item.`;
+      itemSuggestionList.append(empty);
+      if (itemSearchStatus) itemSearchStatus.textContent = 'No matching items';
+      return;
+    }
+
+    itemSuggestionsLabel.textContent = result.label;
+    result.entries.forEach((entry, index) => {
+      const row = document.createElement('li');
+      row.className = 'item-suggestion';
+      if (serviceName === 'Online Bazaar') row.classList.add('marketplace-listing');
+      row.id = `item-option-${index}`;
+      if (!sellIsFoodOrder) {
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', 'false');
+      }
+
+      const image = document.createElement('span');
+      image.className = 'item-suggestion-img';
+      const menuPhoto = serviceName === 'Food Express'
+        ? foodPhotosByMenu.find(({ terms }) => terms.some((term) => entry.name.toLocaleLowerCase().includes(term)))?.photo
+          || restaurants.find((restaurant) => restaurant.name === entry.category)?.photo
+        : null;
+      const imageConfig = itemImages[entry.name]
+        || (serviceName === 'Online Bazaar' && entry.photo
+          ? { src: entry.photo, alt: `Photo of ${entry.name}`, type: 'icon' }
+          : null)
+        || (serviceName === 'Online Bazaar' ? bazaarProductPhoto(entry) : null)
+        || (menuPhoto ? { src: foodPhoto(menuPhoto), type: 'icon' } : null);
+      const isBanner = addConfiguredImage(image, imageConfig, entry.icon, 'item-suggestion-banner');
+      if (isBanner) {
+        const banner = image.firstElementChild;
+        image.removeChild(banner);
+        row.classList.add('has-banner');
+        row.append(banner);
+      } else {
+        row.append(image);
+      }
+
+      const text = document.createElement('span');
+      text.className = 'item-suggestion-text';
+      const name = document.createElement('span');
+      name.className = 'item-suggestion-name';
+      appendHighlighted(name, entry.name, result.tokens);
+      const meta = document.createElement('span');
+      meta.className = 'item-suggestion-meta';
+      meta.textContent = serviceName === 'Food Express'
+        ? `PHP ${Number(entry.price).toFixed(2)} each`
+        : serviceName === 'Online Bazaar'
+          ? `${entry.seller || 'Local seller'} · ${entry.price ? `PHP ${Number(entry.price).toFixed(2)}` : 'Price on request'}${entry.stock ? ` · ${entry.stock} available` : ''}`
+          : entry.category;
+      text.append(name, meta);
+      row.append(text);
+
+      if (sellIsFoodOrder) {
+        const addButton = document.createElement('button');
+        addButton.type = 'button';
+        addButton.className = 'food-menu-add';
+        addButton.textContent = 'Add';
+        addButton.setAttribute('aria-label', `Add ${entry.name} to cart for PHP ${entry.price}`);
+        addButton.addEventListener('click', () => addToFoodCart(entry));
+        row.append(addButton);
+      } else {
+        row.addEventListener('mousedown', (event) => event.preventDefault());
+        row.addEventListener('click', () => pickItem(entry));
+        row.addEventListener('mousemove', () => {
+          if (activeItemIndex !== index) setActiveItem(index, false);
+        });
+      }
+      itemSuggestionList.append(row);
+    });
+    if (itemSearchStatus) {
+      itemSearchStatus.textContent = serviceName === 'Online Bazaar'
+        ? `${result.entries.length} product listing${result.entries.length === 1 ? '' : 's'} available`
+        : `${result.entries.length} suggestion${result.entries.length > 1 ? 's' : ''} available`;
+    }
+  };
+
+  const openSellModal = (serviceName, trigger) => {
+    if (!sellModal || !sellForm || !sellServiceField || !sellTitle || !sellSubtitle) return;
+    sellForm.reset();
+    sellForm.hidden = false;
+    try {
+      const session = readLocalRecord(sessionStorageKey);
+      const profile = session?.email ? getUserProfile(session) : null;
+      const account = session?.email ? readLocalRecord(accountStorageKey) : null;
+      if (profile?.address && deliveryAddress) deliveryAddress.value = profile.address;
+      if (profile?.area && deliveryArea) deliveryArea.value = profile.area;
+      const contact = document.getElementById('seller-contact');
+      if (contact && (account?.phone || session?.email)) contact.value = account?.phone || session.email;
+    } catch (error) {
+      console.error('Could not autofill the saved delivery profile.', error);
+    }
+    sellIsFoodOrder = serviceName === 'Food Express';
+    sellModalDialog?.classList.toggle('marketplace-modal', serviceName === 'Online Bazaar');
+    selectedRestaurant = sellIsFoodOrder ? null : { name: 'Cainta One Express', area: 'Junction' };
+    foodCartContents = [];
+    renderFoodCart();
+    sellTitle.textContent = serviceName === 'Food Express' ? 'Choose a restaurant' : 'Shop by product';
+    sellServiceField.value = serviceName;
+    sellSubtitle.textContent = serviceName === 'Food Express'
+      ? 'Choose a Cainta restaurant, browse its menu, and track your demo delivery after checkout.'
+      : 'Search for an item and compare sample listings from different sellers. Choose the product you want, then send your order request.';
+    if (itemRestaurant) itemRestaurant.value = '';
+    if (bazaarSelectedSeller) {
+      bazaarSelectedSeller.textContent = '';
+      bazaarSelectedSeller.hidden = true;
+    }
+    if (itemCategory) {
+      itemCategory.value = serviceName === 'Food Express' ? 'Food' : 'Fashion';
+    }
+    sellSuccess.hidden = true;
+    if (orderAuthPrompt) orderAuthPrompt.hidden = true;
+    if (orderAuthMessage) orderAuthMessage.textContent = '';
+    if (sellSuccess) sellSuccess.textContent = 'Order paid in demo mode — no real charge was made.';
+    if (deliveryEstimate) deliveryEstimate.hidden = true;
+    deliveryEstimateSummary && (deliveryEstimateSummary.textContent = '');
+    deliveryEstimateStatus && (deliveryEstimateStatus.textContent = '');
+    deliveryMapLink && (deliveryMapLink.hidden = true);
+    if (deliveryMap) {
+      deliveryMap.remove();
+      deliveryMap = null;
+    }
+    if (deliverySimulationTimer) {
+      window.clearInterval(deliverySimulationTimer);
+      deliverySimulationTimer = null;
+    }
+    deliveryDriverMarker = null;
+    sellTriggerToRestoreFocus = trigger;
+    activeItemCategory = 'All';
+    itemSuggestionsDismissed = false;
+    if (restaurantPicker) restaurantPicker.hidden = !sellIsFoodOrder;
+    if (selectedRestaurantPanel) selectedRestaurantPanel.hidden = true;
+    if (itemFinder) itemFinder.hidden = sellIsFoodOrder;
+    if (foodCheckoutFields) foodCheckoutFields.hidden = sellIsFoodOrder;
+    if (foodCart) foodCart.hidden = true;
+    if (bazaarItemFields) bazaarItemFields.hidden = sellIsFoodOrder;
+    if (paymentDemoNote) paymentDemoNote.hidden = !sellIsFoodOrder;
+    if (itemSearch) itemSearch.placeholder = sellIsFoodOrder ? 'Choose a restaurant first' : 'Search products, e.g. T-shirt or sneakers';
+    const itemSearchLabel = document.querySelector('label[for="item-search"]');
+    if (itemSearchLabel) itemSearchLabel.textContent = sellIsFoodOrder ? 'Search menu' : 'Search products';
+    const itemNameLabel = document.querySelector('label[for="item-name"]');
+    if (itemNameLabel) itemNameLabel.textContent = sellIsFoodOrder ? 'Menu item' : 'Selected product';
+    if (itemName) itemName.readOnly = false;
+    if (itemPrice) {
+      itemPrice.readOnly = false;
+      itemPrice.placeholder = 'Enter your budget';
+    }
+    const itemPriceLabel = document.querySelector('label[for="item-price"]');
+    if (itemPriceLabel) itemPriceLabel.textContent = sellIsFoodOrder ? 'Fixed price each (PHP)' : 'Your budget (PHP)';
+    if (sellSubmit) {
+      sellSubmit.disabled = false;
+      sellSubmit.textContent = sellIsFoodOrder ? 'Pay for order (demo)' : 'Send Order Request';
+    }
+    renderFoodCart();
+    renderRestaurants();
+    renderItemCategories(serviceName);
+    renderItemSuggestions(serviceName);
+    sellModal.classList.add('open');
+    sellModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    if (sellIsFoodOrder) restaurantList?.querySelector('button')?.focus();
+    else {
+      itemSearch?.focus();
+    }
+  };
+
+  const closeSellModal = () => {
+    if (!sellModal) return;
+    sellModal.classList.remove('open');
+    sellModal.setAttribute('aria-hidden', 'true');
+    if (!bazaarListingModal?.classList.contains('open')) document.body.classList.remove('modal-open');
+    sellTriggerToRestoreFocus?.focus();
+  };
+
+  let bazaarListingTriggerToRestoreFocus = null;
+  const closeBazaarListingModal = () => {
+    if (!bazaarListingModal) return;
+    bazaarListingModal.classList.remove('open');
+    bazaarListingModal.setAttribute('aria-hidden', 'true');
+    if (!sellModal?.classList.contains('open')) document.body.classList.remove('modal-open');
+    bazaarListingTriggerToRestoreFocus?.focus();
+  };
+  const showBazaarListingForm = (session) => {
+    if (bazaarListingForm) bazaarListingForm.hidden = false;
+    const sellerField = document.getElementById('listing-seller');
+    if (sellerField && !sellerField.value.trim() && session?.name) sellerField.value = session.name;
+    sellerField?.focus();
+  };
+  document.querySelectorAll('[data-open-bazaar-listing]').forEach((button) => {
+    button.addEventListener('click', () => {
+      bazaarListingTriggerToRestoreFocus = button;
+      bazaarListingForm?.reset();
+      pendingBazaarPhoto = '';
+      bazaarPhotoProcessing = false;
+      if (bazaarListingPhotoPreview) {
+        bazaarListingPhotoPreview.removeAttribute('src');
+        bazaarListingPhotoPreview.hidden = true;
+      }
+      if (!bazaarListingStorageError) setBazaarListingMessage('');
+      const submitButton = bazaarListingForm?.querySelector('[type="submit"]');
+      if (submitButton) submitButton.disabled = Boolean(bazaarListingStorageError);
+      if (bazaarListingStorageError) setBazaarListingMessage('Saved listings could not be loaded. Clear this browser\'s Bazaar listing data before publishing another product.', true);
+      bazaarListingModal?.classList.add('open');
+      bazaarListingModal?.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+      let session = null;
+      try {
+        session = readLocalRecord(sessionStorageKey);
+      } catch (error) {
+        console.error('Could not read the account details to prefill the Bazaar seller name.', error);
+      }
+      showBazaarListingForm(session);
+    });
+  });
+  document.querySelectorAll('[data-close-bazaar-listing]').forEach((button) => {
+    button.addEventListener('click', closeBazaarListingModal);
+  });
+  bazaarListingModal?.addEventListener('click', (event) => {
+    if (event.target === bazaarListingModal) closeBazaarListingModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && bazaarListingModal?.classList.contains('open')) {
+      closeBazaarListingModal();
+    }
+  });
+
+  const compressBazaarPhoto = (file) => new Promise((resolve, reject) => {
+    if (!file) {
+      resolve('');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      reject(new Error('Choose a JPEG, PNG, or WebP product photo.'));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      reject(new Error('Choose a product photo smaller than 5 MB.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('The selected product photo could not be read.'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('The selected product photo could not be opened.'));
+      image.onload = () => {
+        const scale = Math.min(1, 640 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('This browser could not resize the product photo.'));
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/webp', 0.72);
+        if (compressed.length > 500000) {
+          reject(new Error('This photo is still too large after resizing. Choose a smaller image.'));
+          return;
+        }
+        resolve(compressed);
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  bazaarListingPhoto?.addEventListener('change', async () => {
+    pendingBazaarPhoto = '';
+    if (bazaarListingPhotoPreview) {
+      bazaarListingPhotoPreview.removeAttribute('src');
+      bazaarListingPhotoPreview.hidden = true;
+    }
+    setBazaarListingMessage('');
+    const file = bazaarListingPhoto.files?.[0];
+    if (!file) return;
+    bazaarPhotoProcessing = true;
+    const submitButton = bazaarListingForm?.querySelector('[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    try {
+      pendingBazaarPhoto = await compressBazaarPhoto(file);
+      if (bazaarListingPhotoPreview) {
+        bazaarListingPhotoPreview.src = pendingBazaarPhoto;
+        bazaarListingPhotoPreview.hidden = false;
+      }
+    } catch (error) {
+      console.error('Could not prepare the Bazaar product photo.', error);
+      setBazaarListingMessage(error.message, true);
+      bazaarListingPhoto.value = '';
+    } finally {
+      bazaarPhotoProcessing = false;
+      if (submitButton) submitButton.disabled = Boolean(bazaarListingStorageError);
+    }
+  });
+
+  document.querySelectorAll('.sell-trigger').forEach((button) => {
+    button.addEventListener('click', () => {
+      const serviceName = button.dataset.service;
+      if (serviceName) openSellModal(serviceName, button);
+    });
+  });
+
+  changeRestaurantButton?.addEventListener('click', () => {
+    selectedRestaurant = null;
+    if (sellTitle) sellTitle.textContent = 'Choose a restaurant';
+    if (restaurantPicker) restaurantPicker.hidden = false;
+    if (selectedRestaurantPanel) selectedRestaurantPanel.hidden = true;
+    if (itemFinder) itemFinder.hidden = true;
+    if (foodCheckoutFields) foodCheckoutFields.hidden = true;
+    foodCartContents = [];
+    renderFoodCart();
+    if (foodCart) foodCart.hidden = true;
+    if (itemRestaurant) itemRestaurant.value = '';
+    if (itemName) itemName.value = '';
+    if (itemSearch) itemSearch.value = '';
+    if (itemPrice) itemPrice.value = '';
+    document.getElementById('item-details').value = '';
+    itemSuggestionsDismissed = false;
+  });
+
+  document.querySelectorAll('[data-close-modal]').forEach((button) => {
+    button.addEventListener('click', closeSellModal);
+  });
+
+  sellModal?.addEventListener('click', (event) => {
+    if (event.target === sellModal) closeSellModal();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && sellModal?.classList.contains('open')) {
+      closeSellModal();
+    }
+  });
+
+  itemSearch?.addEventListener('input', (event) => {
+    const value = event.target.value.trim();
+    if (itemName) {
+      itemName.value = value;
+      itemName.setCustomValidity('');
+    }
+    if (itemPrice) {
+      itemPrice.value = '';
+      itemPrice.readOnly = false;
+    }
+    const itemPriceLabel = document.querySelector('label[for="item-price"]');
+    if (itemPriceLabel && sellServiceField?.value === 'Online Bazaar') itemPriceLabel.textContent = 'Your budget (PHP)';
+    if (itemRestaurant && sellServiceField?.value === 'Online Bazaar') itemRestaurant.value = '';
+    if (bazaarSelectedSeller) bazaarSelectedSeller.hidden = true;
+    itemSuggestionsDismissed = false;
+    renderItemSuggestions(sellServiceField?.value || '', value);
+  });
+  itemName?.addEventListener('input', () => itemName.setCustomValidity(''));
+  itemPrice?.addEventListener('input', () => itemPrice.setCustomValidity(''));
+
+  // Arrow keys move through the suggestions, Enter picks the highlighted one.
+  itemSearch?.addEventListener('keydown', (event) => {
+    if (sellIsFoodOrder) return;
+    const open = itemSuggestions && !itemSuggestions.hidden && itemMatches.length > 0;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!open) {
+        itemSuggestionsDismissed = false;
+        renderItemSuggestions(sellServiceField?.value || '', itemSearch.value);
+        setActiveItem(0);
+        return;
+      }
+      setActiveItem(activeItemIndex + 1 >= itemMatches.length ? 0 : activeItemIndex + 1);
+    } else if (event.key === 'ArrowUp' && open) {
+      event.preventDefault();
+      setActiveItem(activeItemIndex <= 0 ? itemMatches.length - 1 : activeItemIndex - 1);
+    } else if (event.key === 'Enter' && open && activeItemIndex >= 0) {
+      event.preventDefault();
+      pickItem(itemMatches[activeItemIndex]);
+    }
+  });
+
+  bazaarListingForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (bazaarListingStorageError) {
+      setBazaarListingMessage('Saved listings could not be loaded. Clear this browser\'s Bazaar listing data before publishing another product.', true);
+      return;
+    }
+    if (bazaarPhotoProcessing) {
+      setBazaarListingMessage('Please wait for the product photo to finish processing.', true);
+      return;
+    }
+    const values = new FormData(bazaarListingForm);
+    const name = String(values.get('name') || '').trim();
+    const seller = String(values.get('seller') || '').trim();
+    const category = String(values.get('category') || '');
+    const description = String(values.get('description') || '').trim();
+    const price = Number(values.get('price'));
+    const stock = Number(values.get('stock'));
+    if (!name || !seller || !category || !description || !Number.isFinite(price) || price < 1 || !Number.isInteger(stock) || stock < 1) {
+      setBazaarListingMessage('Enter a valid seller name, product name, category, price, stock, and description.', true);
+      return;
+    }
+
+    const listing = {
+      id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      seller,
+      name,
+      category,
+      price,
+      stock,
+      description,
+      photo: pendingBazaarPhoto,
+      createdAt: new Date().toISOString()
+    };
+    const nextListings = [...bazaarListings, listing];
+    try {
+      localStorage.setItem(bazaarListingStorageKey, JSON.stringify(nextListings));
+    } catch (error) {
+      console.error('Could not save the Bazaar product listing.', error);
+      setBazaarListingMessage('Could not save this product in this browser. Remove a photo or free browser storage, then try again.', true);
+      return;
+    }
+
+    bazaarListings = nextListings;
+    const group = ['Clothing', 'Shoes', 'Bags', 'Accessories'].includes(category)
+      ? 'Fashion'
+      : category === 'Home' ? 'Home' : 'Other';
+    const entry = item(name, category, group, description, true, price, seller);
+    entry.photo = listing.photo;
+    entry.stock = stock;
+    entry.listingId = listing.id;
+    itemCatalog['Online Bazaar'].push(entry);
+    bazaarListingForm.reset();
+    pendingBazaarPhoto = '';
+    if (bazaarListingPhotoPreview) {
+      bazaarListingPhotoPreview.removeAttribute('src');
+      bazaarListingPhotoPreview.hidden = true;
+    }
+    setBazaarListingMessage(`${name} is published and can now be found in Online Bazaar search.`);
+  });
+
+  sellForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (sellIsFoodOrder && !selectedRestaurant) {
+      if (deliveryEstimateStatus) deliveryEstimateStatus.textContent = 'Choose a restaurant before placing your order.';
+      return;
+    }
+    if (sellIsFoodOrder && foodCartContents.length === 0) {
+      if (deliveryEstimateStatus) deliveryEstimateStatus.textContent = 'Add at least one menu item to your cart before checkout.';
+      return;
+    }
+    if (!sellIsFoodOrder && !itemName?.value.trim()) {
+      itemName?.setCustomValidity('Enter the item you want to request.');
+      itemName?.reportValidity();
+      return;
+    }
+    if (!sellIsFoodOrder && (!itemPrice || !Number.isFinite(itemPrice.valueAsNumber) || itemPrice.valueAsNumber < 1)) {
+      itemPrice?.setCustomValidity('Enter a budget of at least PHP 1.');
+      itemPrice?.reportValidity();
+      return;
+    }
+    let session;
+    try {
+      session = readLocalRecord(sessionStorageKey);
+    } catch (error) {
+      console.error('Could not verify the signed-in account before checkout.', error);
+      if (deliveryEstimateStatus) deliveryEstimateStatus.textContent = 'Could not verify your account. Please refresh the page and try again.';
+      return;
+    }
+    if (!session?.email) {
+      if (orderAuthPrompt) {
+        orderAuthPrompt.hidden = false;
+        if (orderAuthMessage) orderAuthMessage.textContent = '';
+        orderAuthPrompt.querySelector('a')?.focus();
+      } else if (deliveryEstimateStatus) {
+        deliveryEstimateStatus.textContent = 'Sign in or create an account before placing your order.';
+      }
+      return;
+    }
+    if (sellSubmit) {
+      sellSubmit.disabled = true;
+      sellSubmit.textContent = sellIsFoodOrder ? 'Confirming demo payment...' : 'Calculating route...';
+    }
+    try {
+      await estimateDeliveryRoute();
+      if (sellSuccess && sellIsFoodOrder) {
+        sellSuccess.hidden = false;
+        sellForm.hidden = true;
+      }
+    } catch (error) {
+      if (deliveryEstimate) deliveryEstimate.hidden = false;
+      if (deliveryEstimateStatus) deliveryEstimateStatus.textContent = error.message;
+    } finally {
+      if (sellSubmit) {
+        sellSubmit.disabled = false;
+        sellSubmit.textContent = sellIsFoodOrder ? 'Paid' : 'Send Order Request';
+      }
+    }
+  });
+  orderAuthContinue?.addEventListener('click', () => {
+    try {
+      const session = readLocalRecord(sessionStorageKey);
+      if (!session?.email) {
+        if (orderAuthMessage) orderAuthMessage.textContent = 'You are not signed in yet. Sign in or create an account in the new tab, then try again.';
+        return;
+      }
+      if (orderAuthPrompt) orderAuthPrompt.hidden = true;
+      if (orderAuthMessage) orderAuthMessage.textContent = '';
+      sellForm?.requestSubmit();
+    } catch (error) {
+      console.error('Could not verify the signed-in account before continuing checkout.', error);
+      if (orderAuthMessage) orderAuthMessage.textContent = 'Could not verify your account. Please refresh the page and try again.';
+    }
+  });
+  orderAuthBack?.addEventListener('click', () => {
+    if (orderAuthPrompt) orderAuthPrompt.hidden = true;
+    sellSubmit?.focus();
+  });
+
+  /* ============================================================
+     LIVE BACKGROUND + SCROLL EFFECTS
+     ============================================================ */
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- 1. Mark elements for scroll reveal + parallax -------------------
+  const revealTargets = [
+    '.hero .eyebrow', '.hero h1', '.hero p', '.hero-actions', '.hero-metrics',
+    '.section-head', '.service-card', '.feature-panel', '.stat-card',
+    '.process-step', '.cta'
+  ];
+
+  revealTargets.forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el, i) => {
+      el.classList.add('reveal');
+      el.style.setProperty('--delay', `${(i % 4) * 0.1}s`);
+    });
+  });
+
+  // element -> parallax speed (positive = drifts slower than page, negative = faster)
+  const parallaxMap = [
+    ['.hero-grid > div:first-child', 0.10],
+    ['.hero-visual', -0.08],
+    ['.section-head', 0.06],
+    ['.feature-panel', 0.05],
+    ['.stats-box', -0.05],
+    ['.service-card:nth-child(2)', 0.05],
+    ['.process-step:nth-child(even)', 0.05],
+    ['.cta', 0.04]
+  ];
+
+  const parallaxEls = [];
+  parallaxMap.forEach(([sel, speed]) => {
+    document.querySelectorAll(sel).forEach((el) => {
+      el.dataset.parallax = speed;
+      parallaxEls.push({ el, speed, base: 0 });
+    });
+  });
+
+  const measure = () => {
+    parallaxEls.forEach((p) => {
+      p.el.style.translate = 'none';
+      const r = p.el.getBoundingClientRect();
+      p.base = r.top + window.scrollY + r.height / 2; // page-Y of element centre
+    });
+  };
+
+  // ---- 2. Reveal on scroll ---------------------------------------------
+  if ('IntersectionObserver' in window && !reduceMotion) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
+  }
+
+  // ---- 3. Background layers: scroll + mouse parallax -------------------
+  const layers = [...document.querySelectorAll('.bg-live .layer')];
+  let mouseX = 0, mouseY = 0, smoothMX = 0, smoothMY = 0;
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+  }, { passive: true });
+
+  // ---- 4. One animation loop, eased towards the real scroll position ----
+  let targetY = window.scrollY;
+  let currentY = targetY;
+
+  window.addEventListener('scroll', () => { targetY = window.scrollY; }, { passive: true });
+  window.addEventListener('resize', measure);
+  window.addEventListener('load', measure);
+  measure();
+
+  const frame = () => {
+    currentY += (targetY - currentY) * 0.09;   // floaty easing
+    smoothMX += (mouseX - smoothMX) * 0.05;
+    smoothMY += (mouseY - smoothMY) * 0.05;
+
+    if (!reduceMotion) {
+      layers.forEach((layer) => {
+        const speed = parseFloat(layer.dataset.speed) || 0.1;
+        const mouse = parseFloat(layer.dataset.mouse) || 0;
+        layer.style.setProperty('--sy', (currentY * speed).toFixed(2));
+        layer.style.setProperty('--mx', (smoothMX * mouse).toFixed(2));
+        layer.style.setProperty('--my', (smoothMY * mouse).toFixed(2));
+      });
+
+      const viewMid = currentY + window.innerHeight / 2;
+      parallaxEls.forEach((p) => {
+        const offset = (p.base - viewMid) * p.speed;
+        p.el.style.translate = `0 ${offset.toFixed(1)}px`;
+      });
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+});
