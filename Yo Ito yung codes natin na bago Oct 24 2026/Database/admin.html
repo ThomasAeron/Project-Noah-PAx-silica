@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Cainta One Express</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script src="api-config.js"></script>
+<style>
+:root{--navy:#0b1f3a;--navy2:#123253;--blue:#1f72d8;--orange:#f7a93b;--text:#1d2a39;--muted:#64748b;--bg:#eef5fb;--line:#dfe7f1;--green:#17935a;--red:#d8453b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;display:flex;min-height:100vh}
+a{color:inherit;text-decoration:none}
+nav{width:220px;background:var(--navy);color:#fff;padding:18px 0;flex-shrink:0}
+.brand{display:flex;gap:10px;align-items:center;padding:0 18px 16px;font-weight:800;border-bottom:1px solid rgba(255,255,255,.12)}
+.brand img{width:36px;height:36px;border-radius:10px}
+nav a{display:block;padding:11px 18px;color:rgba(255,255,255,.75)}
+nav a:hover,nav a.on{background:rgba(255,255,255,.08);color:#fff;border-left:3px solid var(--orange);padding-left:15px}
+main{flex:1;min-width:0;padding:22px 28px 40px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:1.7rem;color:var(--navy);font-weight:700}
+.who{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:.9rem}
+.btn{border:0;border-radius:8px;padding:8px 14px;background:var(--blue);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.btn.alt{background:#fff;color:var(--navy);border:1px solid var(--line)}.btn.sm{padding:5px 10px;font-size:.8rem}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(31,114,216,.35)}
+.banner{background:#fff6e5;border:1px solid #f3d9a4;color:#7a5200;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.88rem}
+.grid{display:grid;gap:20px}.stats{grid-template-columns:repeat(4,1fr);margin-bottom:20px}.two{grid-template-columns:2fr 1fr;margin-bottom:20px;align-items:start}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 8px 22px rgba(18,50,83,.06)}
+.card h2{font-size:1.05rem;color:var(--blue);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tag{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:#e6f6ee;color:var(--green)}.tag.demo{background:#fff1d6;color:#8a5a00}
+.k{font-size:.78rem;color:var(--muted);text-transform:uppercase}.v{font-size:1.8rem;font-weight:800;color:var(--navy)}
+.bar{margin:12px 0}.bar div:first-child{display:flex;justify-content:space-between;font-size:.84rem;color:var(--muted);margin-bottom:3px}
+.track{height:9px;background:#e8eff7;border-radius:6px;overflow:hidden}.fill{height:100%;background:var(--blue);border-radius:6px}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:560px}
+th{text-align:left;font-size:.78rem;color:var(--muted);padding:8px 10px;background:#f4f8fc}td{padding:9px 10px;border-bottom:1px solid var(--line);font-size:.9rem}
+.pill{padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700;color:#fff;background:#8a9bb0}
+.pill.delivered{background:var(--green)}.pill.transit{background:var(--blue)}.pill.pending{background:var(--orange);color:var(--navy)}.pill.failed{background:var(--red)}
+svg text{fill:var(--muted);font-size:12px}
+.note{list-style:none;font-size:.88rem}.note li{padding:8px 0;border-bottom:1px solid var(--line)}.note small{color:var(--muted);display:block}
+#gate{max-width:440px;margin:12vh auto;text-align:center}#gate p{color:var(--muted);margin:8px 0 16px}
+dialog{border:0;border-radius:14px;padding:22px;width:min(420px,92vw)}dialog::backdrop{background:rgba(11,31,58,.6)}
+dialog label{display:block;font-size:.84rem;font-weight:700;color:var(--navy);margin:10px 0 3px}
+dialog input,dialog select,dialog textarea{width:100%;padding:9px 11px;border:1px solid #cbd9e6;border-radius:8px;font:inherit}
+#msg{color:var(--red);font-size:.85rem;margin-top:8px;min-height:1.2em}
+@media(max-width:1000px){.stats{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:700px){nav{display:none}main{padding:16px}.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<section id="gate" class="card" hidden>
+  <h2 style="justify-content:center;font-size:1.4rem;color:var(--navy)">Sign in to open the admin panel</h2>
+  <p>Use your Cainta One Express account. Admin data is only returned by the server to authorized accounts.</p>
+  <a class="btn" href="account.html?mode=signin">Sign In</a>
+</section>
+
+<nav id="side" hidden aria-label="Admin">
+  <div class="brand"><img src="favicon.svg" alt=""><span>Cainta One<br>Admin</span></div>
+  <a class="on" href="#top">Dashboard</a><a href="#shipments">Shipments</a><a href="#catalog">Catalog</a><a href="#alerts">Notifications</a><a href="main.html">← Back to website</a>
+</nav>
+
+<main id="app" hidden>
+  <div class="top" id="top">
+    <h1>Dashboard</h1>
+    <div class="who"><span id="who"></span><button class="btn alt sm" id="out">Sign out</button></div>
+  </div>
+  <div class="banner" id="banner" hidden></div>
+
+  <section class="grid stats" aria-label="Key numbers">
+    <div class="card"><div class="k">Products listed</div><div class="v" id="s1">–</div></div>
+    <div class="card"><div class="k">Shipments</div><div class="v" id="s2">–</div></div>
+    <div class="card"><div class="k">Delivered</div><div class="v" id="s3">–</div></div>
+    <div class="card"><div class="k">Unread notifications</div><div class="v" id="s4">–</div></div>
+  </section>
+
+  <section class="grid two">
+    <div class="card"><h2>Shipments per month <span class="tag" id="t-chart"></span></h2><svg id="chart" viewBox="0 0 700 280" width="100%" role="img" aria-label="Shipments per month"></svg></div>
+    <div class="card"><h2>Top merchants <span class="tag" id="t-merch"></span></h2><div id="merch"></div></div>
+  </section>
+
+  <section class="card" id="shipments" style="margin-bottom:20px">
+    <h2>Shipments <span class="tag" id="t-ship"></span></h2>
+    <div class="scroll"><table><thead><tr><th>Tracking</th><th>Destination</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody id="ship"></tbody></table></div>
+  </section>
+
+  <section class="grid two">
+    <div class="card" id="catalog">
+      <h2>Catalog <span><span class="tag" id="t-cat"></span> <button class="btn sm" id="add">+ Add Bazaar listing</button></span></h2>
+      <div class="scroll"><table><thead><tr><th>Item</th><th>Category</th><th>Merchant</th><th>Price</th></tr></thead><tbody id="cat"></tbody></table></div>
+    </div>
+    <div class="card" id="alerts"><h2>Notifications <span class="tag" id="t-note"></span></h2><ul class="note" id="notes"></ul></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form id="f" method="dialog">
+    <h2 style="color:var(--navy)">Add Bazaar listing</h2>
+    <label for="f-seller">Seller</label><input id="f-seller" required maxlength="50">
+    <label for="f-name">Product name</label><input id="f-name" required maxlength="80">
+    <label for="f-cat">Category</label>
+    <select id="f-cat" required><option>Clothing</option><option>Shoes</option><option>Bags</option><option>Accessories</option><option>Home</option><option>Electronics</option><option>Other</option></select>
+    <label for="f-price">Price (PHP)</label><input id="f-price" type="number" min="1" step="0.01" required>
+    <label for="f-stock">Stock</label><input id="f-stock" type="number" min="1" step="1" required>
+    <label for="f-desc">Description</label><textarea id="f-desc" rows="2" maxlength="500" required></textarea>
+    <p id="msg" role="status"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="btn alt" id="cancel">Cancel</button><button class="btn" id="save">Publish product</button></div>
+  </form>
+</dialog>
+
+<script>
+/* ---- Same session + API conventions as script.js on the website ---- */
+const SESSION_KEY = 'coe-demo-session-v1';
+const readSession = () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; } };
+const session = readSession();
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const peso = (n) => n == null ? '–' : 'PHP ' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+async function api(path, options = {}) {
+  const res = await fetch(`${window.CAINTA_API_BASE}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}), ...(options.headers || {}) } });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try { const j = await res.json(); message = j.error || j.message || j.detail || message; } catch {}
+    const err = new Error(message); err.status = res.status; throw err;
+  }
+  return res.json();
+}
+
+/* ---- Demo data, shown only when an endpoint is missing or unreachable ---- */
+const DEMO_SHIPMENTS = [
+  { id: 'demo-1', tracking_number: 'COE-DEMO-0001', destination: 'San Isidro', status: 'in_transit', created_at: '2026-10-18' },
+  { id: 'demo-2', tracking_number: 'COE-DEMO-0002', destination: 'Brookside', status: 'delivered', created_at: '2026-10-17' },
+  { id: 'demo-3', tracking_number: 'COE-DEMO-0003', destination: 'Karangalan', status: 'pending', created_at: '2026-10-19' },
+  { id: 'demo-4', tracking_number: 'COE-DEMO-0004', destination: 'Junction', status: 'delivered', created_at: '2026-09-28' }
+];
+const setTag = (id, live) => { const t = $(id); t.textContent = live ? 'Live' : 'Demo'; t.className = 'tag' + (live ? '' : ' demo'); };
+const notes = [];
+async function tryLoad(path, fallback, tagId) {
+  try { const d = await api(path); setTag(tagId, true); return d; }
+  catch (e) { if (e.status === 401) throw e; notes.push(`${path}: ${e.message}`); setTag(tagId, false); return fallback; }
+}
+
+let items = [], shipments = [];
+const statusClass = (s) => /deliver/i.test(s) ? 'delivered' : /transit|picked/i.test(s) ? 'transit' : /fail|cancel/i.test(s) ? 'failed' : 'pending';
+const NEXT = { pending: 'picked_up', created: 'picked_up', picked_up: 'in_transit', in_transit: 'delivered' };
+
+function render() {
+  const delivered = shipments.filter((s) => /deliver/i.test(s.status)).length;
+  $('s1').textContent = items.length; $('s2').textContent = shipments.length; $('s3').textContent = delivered;
+
+  // Top merchants (real data from /api/items)
+  const counts = {}; items.forEach((i) => { const m = i.merchant || 'Unknown'; counts[m] = (counts[m] || 0) + 1; });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5), max = top[0]?.[1] || 1;
+  $('merch').innerHTML = top.map(([m, n]) => `<div class="bar"><div><span>${esc(m)}</span><span>${n} items</span></div><div class="track"><div class="fill" style="width:${n / max * 100}%"></div></div></div>`).join('') || '<p class="k">No items yet</p>';
+
+  // Shipments table
+  $('ship').innerHTML = shipments.map((s) => {
+    const key = String(s.status || 'pending').toLowerCase(), next = NEXT[key];
+    return `<tr><td><b>${esc(s.tracking_number || s.id)}</b></td><td>${esc(s.destination || s.destination_addr || '–')}</td><td><span class="pill ${statusClass(key)}">${esc(key.replace('_', ' '))}</span></td><td>${esc(String(s.created_at || '').slice(0, 10))}</td><td>${next ? `<button class="btn sm" data-id="${esc(s.id)}" data-next="${next}">Mark ${next.replace('_', ' ')}</button>` : '–'}</td></tr>`;
+  }).join('') || '<tr><td colspan="5">No shipments yet. Orders placed on the website appear here.</td></tr>';
+
+  // Catalog
+  $('cat').innerHTML = items.slice(0, 25).map((i) => `<tr><td>${esc(i.name)}</td><td>${esc(i.category)}</td><td>${esc(i.merchant || '–')}</td><td>${peso(i.price)}</td></tr>`).join('');
+
+  // Chart: shipments per month
+  const byMonth = Array(12).fill(0); shipments.forEach((s) => { const d = new Date(s.created_at); if (!isNaN(d)) byMonth[d.getMonth()]++; });
+  const W = 700, H = 280, L = 40, B = 30, T = 14, R = 14, m = Math.max(4, ...byMonth);
+  const x = (i) => L + i * (W - L - R) / 11, y = (v) => T + (H - T - B) * (1 - v / m);
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let g = [0, .5, 1].map((p) => `<line x1="${L}" x2="${W - R}" y1="${y(m * p)}" y2="${y(m * p)}" stroke="#e3ebf4"/><text x="${L - 6}" y="${y(m * p) + 4}" text-anchor="end">${Math.round(m * p)}</text>`).join('');
+  const pts = byMonth.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+  g += `<polygon points="${x(0)},${y(0)} ${pts} ${x(11)},${y(0)}" fill="#1f72d8" opacity=".25"/><polyline points="${pts}" fill="none" stroke="#1f72d8" stroke-width="2.5"/>`;
+  g += byMonth.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="#1f72d8"><title>${mon[i]}: ${v}</title></circle>${i % 2 ? '' : `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${mon[i]}</text>`}`).join('');
+  $('chart').innerHTML = g;
+}
+
+async function load() {
+  items = await tryLoad('/api/items?limit=500', [], 't-cat');
+  const sh = await tryLoad('/api/shipments', DEMO_SHIPMENTS, 't-ship');
+  shipments = Array.isArray(sh) ? sh : (sh.items || DEMO_SHIPMENTS);
+  setTag('t-chart', $('t-ship').textContent === 'Live'); setTag('t-merch', $('t-cat').textContent === 'Live');
+  const n = await tryLoad('/api/notifications?limit=20', [], 't-note');
+  $('s4').textContent = n.filter((x) => x.read === false || x.is_read === false || x.read_at == null).length;
+  $('notes').innerHTML = n.map((x) => `<li><b>${esc(x.title)}</b><small>${esc(x.body)}</small></li>`).join('') || '<li>No notifications.</li>';
+  const b = $('banner');
+  if (notes.length) { b.hidden = false; b.textContent = 'Some panels show demo data because these requests failed: ' + notes.join(' · '); } else b.hidden = true;
+  render();
+}
+
+$('ship').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-id]'); if (!btn) return;
+  if (btn.dataset.id.startsWith('demo-')) { const s = shipments.find((x) => x.id === btn.dataset.id); s.status = btn.dataset.next; render(); return; }
+  btn.disabled = true;
+  try { await api(`/api/shipments/${encodeURIComponent(btn.dataset.id)}/advance`, { method: 'POST', body: JSON.stringify({ event_type: btn.dataset.next, notes: 'Updated from admin panel', lat: null, lon: null }) }); await load(); }
+  catch (err) { alert('Could not update the shipment: ' + err.message); btn.disabled = false; }
+});
+
+$('add').onclick = () => { $('msg').textContent = ''; $('f-seller').value ||= session?.name || ''; $('dlg').showModal(); };
+$('cancel').onclick = () => $('dlg').close();
+$('f').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('save').disabled = true; $('msg').textContent = 'Publishing…';
+  try {
+    await api('/api/items/bazaar-listing', { method: 'POST', body: JSON.stringify({ seller: $('f-seller').value.trim(), name: $('f-name').value.trim(), category: $('f-cat').value, price: Number($('f-price').value), stock: Number($('f-stock').value), description: $('f-desc').value.trim() }) });
+    $('dlg').close(); $('f').reset(); await load();
+  } catch (err) { $('msg').textContent = err.message; } finally { $('save').disabled = false; }
+});
+
+$('out').onclick = () => { localStorage.removeItem(SESSION_KEY); location.href = 'main.html'; };
+
+(async function init() {
+  if (!session?.token) { $('gate').hidden = false; return; }
+
+  let me;
+  try {
+    me = await api('/api/auth/me');
+  } catch (e) {
+    if (e.status === 401) {
+      localStorage.removeItem(SESSION_KEY);
+      $('gate').hidden = false;
+      return;
+    }
+    throw e;
+  }
+
+  // Check role. Only admin or staff can enter the admin panel.
+  const allowedRoles = ['admin', 'staff'];
+  const hasAccess = me.roles?.some(r => allowedRoles.includes(r));
+
+  if (!hasAccess) {
+    // Show the gate with a permission-denied message.
+    const gate = $('gate');
+    gate.hidden = false;
+    gate.innerHTML = `
+      <h2 style="justify-content:center;font-size:1.4rem;color:var(--navy)">Access restricted</h2>
+      <p>You need an admin or staff account to open this panel.</p>
+      <p style="margin-top:8px;color:var(--muted);font-size:.85rem">
+        Signed in as ${esc(session.email)} (${esc(me.roles?.join(', ') || 'no role')})
+      </p>
+      <a class="btn" href="main.html">Back to website</a>
+      <a class="btn alt" href="account.html" style="margin-left:8px">Switch account</a>
+    `;
+    return;
+  }
+
+  $('who').textContent = session.name || session.email;
+  $('side').hidden = false;
+  $('app').hidden = false;
+
+  try { await load(); }
+  catch (e) {
+    if (e.status === 401) {
+      localStorage.removeItem(SESSION_KEY);
+      location.reload();
+    }
+  }
+})();
+</script>
+</body>
+</html>
